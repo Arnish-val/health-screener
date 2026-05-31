@@ -1,0 +1,57 @@
+# ── Python & Virtual Environments ──────────────────────────────────────
+.venv/
+venv/
+ENV/
+env/
+bin/
+lib/
+include/
+share/
+
+# ── Compiled Python Cache & Testing ───────────────────────────────────
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.cache/
+.coverage
+htmlcov/
+nosetests.xml
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ── Node.js & Frontend ───────────────────────────────────────────────
+**/node_modules/
+**/dist/
+**/dist-ssr/
+.eslintcache
+
+# ── Databases & Confidential Data ─────────────────────────────────────
+*.db
+*.db-journal
+*.sqlite3
+*.sqlite
+.env
+.env.local
+.env.*.local
+*.env
+secret_key*
+secrets/
+
+# ── IDEs, Editors & System Files ──────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# ── Large ML Pipelines (Optional, but highly recommended) ─────────────
+# Uncomment the line below if you want to host models externally 
+# or if they exceed 100MB in the future:
+# **/ml_pipeline/models/*.joblib

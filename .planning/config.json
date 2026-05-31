@@ -1,0 +1,20 @@
+{
+  "project": {
+    "name": "Health & Wellness Screener",
+    "type": "Portfolio/Healthcare",
+    "stack": {
+      "frontend": "React/Vite/Tailwind",
+      "backend": "FastAPI",
+      "ml": "Scikit-learn"
+    }
+  },
+  "workflow": {
+    "auto_commit": true,
+    "require_tests": true,
+    "design_system": "design-system/health-&-wellness-screener/MASTER.md"
+  },
+  "intel": {
+    "enabled": true,
+    "path": ".planning/codebase/"
+  }
+}
