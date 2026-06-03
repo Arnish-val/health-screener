@@ -27,9 +27,13 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    // FastAPI returns { detail: "..." } for HTTP errors
+    // Our APIResponse wrapper uses { error: { message: "..." } } for app errors
+    const detail = error.response?.data?.detail;
     const message =
+      (typeof detail === 'string' ? detail : null) ||
       error.response?.data?.error?.message ||
-      error.response?.data?.detail ||
+      error.message ||
       'Something went wrong. Please try again.';
 
     return Promise.reject(new Error(message));

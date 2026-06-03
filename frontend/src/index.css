@@ -140,3 +140,74 @@ h1, h2, h3, h4, h5, h6 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   LANDING PAGE — PREMIUM HEALTHCARE DESIGN UTILITIES
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Floating keyframe for hero card */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-14px); }
+}
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(8px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+.animate-float-slow {
+  animation: float-slow 3.5s ease-in-out infinite;
+}
+
+/* Blob orb background helper */
+.blob {
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Gradient text helper */
+.gradient-text-blue {
+  background: linear-gradient(135deg, #106EBE, #0FFCBE);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* CTA pill button */
+.btn-cta-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  background: #106EBE;
+  color: white;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: 0 16px 32px rgba(16, 110, 190, 0.28);
+  transition: all 0.3s ease;
+}
+.btn-cta-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 48px rgba(16, 110, 190, 0.38);
+}
+.btn-cta-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  background: transparent;
+  color: #106EBE;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: 2px solid #106EBE;
+  transition: all 0.3s ease;
+}
+.btn-cta-outline:hover {
+  background: #EFF6FF;
+  transform: translateY(-2px);
+}
+

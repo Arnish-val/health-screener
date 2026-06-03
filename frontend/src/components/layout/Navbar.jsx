@@ -73,8 +73,12 @@ export default function Navbar({ isDark, toggleTheme }) {
                 </button>
              </div>
           ) : (
-             <button onClick={() => handleNavigate('/auth')} className="btn-primary text-sm px-4 py-2">
-                <LogIn className="w-4 h-4 inline-block mr-1" /> Login
+             <button
+               onClick={() => handleNavigate('/auth')}
+               id="nav-get-started-btn"
+               className="px-5 py-2 bg-[#106EBE] hover:bg-[#0A4F8A] text-white text-sm font-bold rounded-full shadow-md shadow-[#106EBE]/25 hover:shadow-[#106EBE]/40 transition-all"
+             >
+               Get Started
              </button>
           )}
 

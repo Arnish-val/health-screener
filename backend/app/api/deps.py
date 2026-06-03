@@ -8,7 +8,7 @@ from app.models.user import User
 from app.schemas.auth import TokenData
 from typing import Optional
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 def get_db():
     db = SessionLocal()
