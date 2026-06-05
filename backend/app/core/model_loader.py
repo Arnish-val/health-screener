@@ -54,12 +54,29 @@ async def lifespan(app: FastAPI):
         logger.warning("Mental health pipeline not found at %s", mh_path)
         app.state.mh_pipeline = None
 
+    # Alzheimer's disease pipeline
+    alz_path = settings.MODEL_DIR / "alzheimers_model.joblib"
+    if alz_path.exists():
+        try:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                app.state.alz_pipeline = joblib.load(alz_path)
+            logger.info("Alzheimer's pipeline loaded successfully.")
+        except Exception as e:
+            logger.error("Failed to load Alzheimer's pipeline: %s", e)
+            app.state.alz_pipeline = None
+    else:
+        logger.warning("Alzheimer's pipeline not found at %s", alz_path)
+        app.state.alz_pipeline = None
+
     yield  # Application runs here
 
     # Cleanup
     logger.info("Shutting down — releasing model references.")
     app.state.disease_pipeline = None
     app.state.mh_pipeline = None
+    app.state.alz_pipeline = None
 
 
 # ── Dependency helpers for route injection ───────────────────────────────────
@@ -79,4 +96,11 @@ def get_mh_artifacts(request: Request) -> dict:
         "pipeline": getattr(request.app.state, "mh_pipeline", None),
         "features": getattr(request.app.state, "mh_features", None),
         "risk_bands": getattr(request.app.state, "mh_risk_bands", None),
+    }
+
+
+def get_alz_artifacts(request: Request) -> dict:
+    """FastAPI dependency: returns Alzheimer's pipeline from app.state."""
+    return {
+        "pipeline": getattr(request.app.state, "alz_pipeline", None),
     }
