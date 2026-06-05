@@ -55,3 +55,7 @@ Thumbs.db
 # Uncomment the line below if you want to host models externally 
 # or if they exceed 100MB in the future:
 # **/ml_pipeline/models/*.joblib
+
+# ── Agent Specific ────────────────────────────────────────────────────
+.agent/
+
