@@ -23,6 +23,7 @@ export default function Navbar({ isDark, toggleTheme }) {
     { key: '/', label: 'Dashboard' },
     { key: '/disease', label: 'Disease AI' },
     { key: '/depression', label: 'Mental Health' },
+    { key: '/alzheimers', label: "Alzheimer's" },
   ];
 
   const linkClass = (path) =>

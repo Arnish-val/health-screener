@@ -6,6 +6,7 @@ import PageWrapper from './components/layout/PageWrapper';
 import LandingScreen from './components/LandingScreen';
 import DiseasePredictor from './components/disease/DiseasePredictor';
 import DepressionScreener from './components/depression/DepressionScreener';
+import AlzheimersScreener from './components/alzheimers/AlzheimersScreener';
 import AuthScreen from './components/auth/AuthScreen';
 import HistoryView from './components/history/HistoryView';
 import { AuthProvider } from './contexts/AuthContext';
@@ -30,6 +31,7 @@ function AppShell({ isDark, toggleTheme }) {
           <Routes>
             <Route path="/disease" element={<DiseasePredictor />} />
             <Route path="/depression" element={<DepressionScreener />} />
+            <Route path="/alzheimers" element={<AlzheimersScreener />} />
             <Route path="/auth" element={<AuthScreen />} />
             <Route path="/history" element={<HistoryView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
