@@ -173,7 +173,7 @@ function IntroStep({ onNext }) {
             <BarChart3 className="w-5 h-5 text-cyan-400" />
           </div>
           <h3 className="font-semibold text-white mb-1">fMRI Analysis</h3>
-          <p className="text-sm text-slate-400">1,128 connectivity features • SVM classifier • Default Mode Network analysis from resting-state fMRI.</p>
+          <p className="text-sm text-slate-400">Raw DICOM/NIfTI input • ADNI v4.5 processing • Default Mode Network analysis from resting-state fMRI.</p>
           <div className="mt-3 text-xs font-medium text-cyan-400">Weight: 60%</div>
         </div>
       </div>
@@ -350,7 +350,7 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
         </div>
         <div>
           <h2 className="text-2xl font-bold text-white">fMRI Data Upload</h2>
-          <p className="text-sm text-slate-400">Upload resting-state fMRI connectivity features (optional)</p>
+          <p className="text-sm text-slate-400">Upload a resting-state fMRI DICOM series zip or NIfTI file (optional)</p>
         </div>
       </div>
 
@@ -374,7 +374,7 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
         <input
           id="fmri-file-input"
           type="file"
-          accept=".npy,.nii,.nii.gz,.json"
+          accept=".zip,.dcm,.nii,.nii.gz"
           className="hidden"
           onChange={(e) => onFileChange(e.target.files?.[0])}
         />
@@ -388,8 +388,8 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
           <div className="space-y-3">
             <Upload className="w-12 h-12 mx-auto text-slate-500" />
             <div>
-              <p className="text-slate-300 font-medium">Drop your fMRI feature file here</p>
-              <p className="text-xs text-slate-500 mt-1">Accepts .npy (1128 features) or .json with feature array</p>
+              <p className="text-slate-300 font-medium">Drop the patient's scan file here</p>
+              <p className="text-xs text-slate-500 mt-1">Use a .zip containing the full DICOM series, or upload .nii / .nii.gz</p>
             </div>
           </div>
         )}
@@ -400,12 +400,11 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div className="text-sm text-slate-400">
-            <p className="font-medium text-slate-300 mb-1">About fMRI Features</p>
+            <p className="font-medium text-slate-300 mb-1">About Scan Uploads</p>
             <p>
-              The model expects <strong className="text-white">1,128 connectivity features</strong> extracted
-              from resting-state fMRI using a 48-region atlas. These represent Pearson correlations
-              between brain region pairs. If you don't have fMRI data, skip this step — the
-              assessment will use only the cognitive scores.
+              The backend converts DICOM to NIfTI, extracts Default Mode Network signals from
+              <strong className="text-white"> 11 ROIs</strong>, and predicts AD/CN from 110 connectivity features.
+              If you don't have fMRI data, skip this step — the assessment will use only the cognitive scores.
             </p>
           </div>
         </div>
@@ -433,11 +432,11 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
 function ProcessingOverlay() {
   const [step, setStep] = useState(0);
   const steps = [
-    { label: 'Validating fMRI data format', icon: FileText },
-    { label: 'Standardizing features (StandardScaler)', icon: Activity },
-    { label: 'Selecting top 300 features (SelectKBest)', icon: Zap },
+    { label: 'Validating scan upload', icon: FileText },
+    { label: 'Converting DICOM to NIfTI when needed', icon: Activity },
+    { label: 'Extracting Default Mode Network signals', icon: Zap },
     { label: 'Running SVM classifier', icon: Brain },
-    { label: 'Computing decision boundary distance', icon: BarChart3 },
+    { label: 'Computing AD/CN probability', icon: BarChart3 },
     { label: 'Fusing with cognitive assessment', icon: Shield },
   ];
 
@@ -456,7 +455,7 @@ function ProcessingOverlay() {
             <Brain className="w-8 h-8 text-white" />
           </div>
           <h3 className="text-xl font-bold text-white">Analyzing Brain Connectivity</h3>
-          <p className="text-sm text-slate-400 mt-1">Processing fMRI features through pipeline...</p>
+          <p className="text-sm text-slate-400 mt-1">Processing the uploaded scan through the ADNI pipeline...</p>
         </div>
 
         <div className="space-y-2">
@@ -589,7 +588,7 @@ function ResultsStep({ result, onReset }) {
               </div>
               <div className="flex justify-between items-center p-3 bg-slate-800/40 rounded-xl">
                 <span className="text-sm text-slate-400">Features Used</span>
-                <span className="text-sm text-slate-300">{result.fmri.n_features_used} / 1,128</span>
+                <span className="text-sm text-slate-300">{result.fmri.n_features_used}</span>
               </div>
             </div>
           ) : (
@@ -654,50 +653,16 @@ export default function AlzheimersScreener() {
   };
 
   const handleSubmit = async (includeFmri) => {
-    const payload = {
-      cognitive_scores: cognitiveScores,
-      fmri_features: null,
-    };
+    const formData = new FormData();
+    formData.append('cognitive_scores', JSON.stringify(cognitiveScores));
 
     if (includeFmri && fmriFile) {
       setShowProcessing(true);
-
-      try {
-        let features;
-        const fileName = fmriFile.name.toLowerCase();
-
-        if (fileName.endsWith('.json')) {
-          const text = await fmriFile.text();
-          const json = JSON.parse(text);
-          features = Array.isArray(json) ? json : json.features || json.data;
-        } else if (fileName.endsWith('.npy')) {
-          // For .npy files, we read them as ArrayBuffer and parse the numpy format
-          const buffer = await fmriFile.arrayBuffer();
-          features = parseNpy(buffer);
-        } else {
-          // For .nii / .nii.gz, simulate features (server-side processing placeholder)
-          features = generateSimulatedFeatures();
-        }
-
-        if (!features || features.length !== 1128) {
-          setShowProcessing(false);
-          alert(`Expected 1128 features, got ${features?.length || 0}. Please check your file.`);
-          return;
-        }
-
-        payload.fmri_features = features;
-
-        // Show processing animation for a realistic duration
-        await new Promise((r) => setTimeout(r, 4500));
-      } catch (e) {
-        setShowProcessing(false);
-        alert('Error reading file: ' + e.message);
-        return;
-      }
+      formData.append('scan_file', fmriFile);
     }
 
     try {
-      await execute(payload);
+      await execute(formData);
       setStep('results');
     } finally {
       setShowProcessing(false);
@@ -755,53 +720,3 @@ export default function AlzheimersScreener() {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/**
- * Minimal .npy parser for 1D float64 arrays.
- * Reads the numpy binary format header and extracts the raw float data.
- */
-function parseNpy(buffer) {
-  const view = new DataView(buffer);
-  // Check magic: \x93NUMPY
-  const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2),
-    view.getUint8(3), view.getUint8(4), view.getUint8(5));
-  if (!magic.includes('NUMPY')) {
-    throw new Error('Not a valid .npy file');
-  }
-
-  const headerLen = view.getUint16(8, true);
-  const headerStr = new TextDecoder().decode(new Uint8Array(buffer, 10, headerLen));
-  const dataOffset = 10 + headerLen;
-
-  // Determine dtype
-  const isFloat64 = headerStr.includes('float64') || headerStr.includes('<f8');
-  const isFloat32 = headerStr.includes('float32') || headerStr.includes('<f4');
-  const bytesPerElement = isFloat64 ? 8 : isFloat32 ? 4 : 8;
-
-  const nElements = (buffer.byteLength - dataOffset) / bytesPerElement;
-  const result = [];
-
-  for (let i = 0; i < nElements; i++) {
-    const val = isFloat32
-      ? view.getFloat32(dataOffset + i * bytesPerElement, true)
-      : view.getFloat64(dataOffset + i * bytesPerElement, true);
-    result.push(val);
-  }
-
-  return result;
-}
-
-/**
- * Generate simulated 1128 fMRI features for demo purposes.
- * Uses realistic correlation distributions typical of resting-state fMRI.
- */
-function generateSimulatedFeatures() {
-  const features = [];
-  for (let i = 0; i < 1128; i++) {
-    // Simulate correlation values between -0.5 and 0.8
-    const u1 = Math.random();
-    const u2 = Math.random();
-    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-    features.push(Math.max(-1, Math.min(1, z * 0.25 + 0.15)));
-  }
-  return features;
-}

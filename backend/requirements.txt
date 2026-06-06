@@ -11,6 +11,11 @@ pandas==3.0.2
 scikit-learn==1.8.0
 scipy==1.17.1
 xgboost==3.2.0
+nibabel>=5.2.0
+nilearn>=0.10.4
+antspyx>=0.5.4
+tqdm>=4.66.0
+
 
 # ── Database & Auth ──────────────────────────────────
 sqlalchemy>=2.0.0
