@@ -26,7 +26,23 @@ export default function useApi(apiFunction) {
         setData(result);
         return result;
       } catch (err) {
-        const message = err.message || 'An unexpected error occurred.';
+        let message = err.message || 'An unexpected error occurred.';
+        if (err.response) {
+          const resData = err.response.data;
+          if (resData && resData.error && resData.error.message) {
+            message = resData.error.message;
+          } else if (resData && resData.detail) {
+            if (Array.isArray(resData.detail)) {
+              message = `Validation Error: ${resData.detail
+                .map((d) => `${d.loc[d.loc.length - 1]}: ${d.msg}`)
+                .join(', ')}`;
+            } else {
+              message = `Validation Error: ${resData.detail}`;
+            }
+          } else {
+            message = `Request failed with status code ${err.response.status}`;
+          }
+        }
         setError(message);
         throw err;
       } finally {

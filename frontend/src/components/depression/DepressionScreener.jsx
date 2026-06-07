@@ -31,11 +31,16 @@ export default function DepressionScreener() {
   const [metrics, setMetrics] = useState(INITIAL_STATE);
   const { data: result, loading, error, execute } = useApi(predictDepression);
 
+  const isAgeInvalid = metrics.Age < 15 || metrics.Age > 80 || isNaN(metrics.Age);
+
   const updateMetric = (key, val) => {
     setMetrics((prev) => ({ ...prev, [key]: parseFloat(val) }));
   };
 
-  const handleSubmit = () => execute(metrics);
+  const handleSubmit = () => {
+    if (isAgeInvalid) return;
+    execute(metrics);
+  };
 
   // Unwrap APIResponse envelope
   const resultData = result?.data || result;
@@ -69,6 +74,7 @@ export default function DepressionScreener() {
         variant="primary"
         size="lg"
         loading={loading}
+        disabled={isAgeInvalid}
         onClick={handleSubmit}
         className="w-full"
       >

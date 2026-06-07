@@ -66,7 +66,25 @@ export default function DiseasePredictor() {
       const res = await axios.post(`${API_URL}/predict/disease`, { symptoms });
       setResult(res.data);
     } catch (err) {
-      setError('Could not reach the prediction server. Make sure the backend is running.');
+      if (err.response) {
+        const resData = err.response.data;
+        if (resData && resData.error && resData.error.message) {
+          setError(resData.error.message);
+        } else if (resData && resData.detail) {
+          if (Array.isArray(resData.detail)) {
+            const detailsMsg = resData.detail
+              .map((d) => `${d.loc[d.loc.length - 1]}: ${d.msg}`)
+              .join(', ');
+            setError(`Validation Error — ${detailsMsg}`);
+          } else {
+            setError(`Validation Error — ${resData.detail}`);
+          }
+        } else {
+          setError(`Request failed with status code ${err.response.status}`);
+        }
+      } else {
+        setError('Could not reach the prediction server. Make sure the backend is running.');
+      }
     } finally {
       setLoading(false);
     }

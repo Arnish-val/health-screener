@@ -27,14 +27,20 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    // FastAPI returns { detail: "..." } for HTTP errors
-    // Our APIResponse wrapper uses { error: { message: "..." } } for app errors
     const detail = error.response?.data?.detail;
-    const message =
-      (typeof detail === 'string' ? detail : null) ||
-      error.response?.data?.error?.message ||
-      error.message ||
-      'Something went wrong. Please try again.';
+    let message = '';
+    
+    if (typeof detail === 'string') {
+      message = detail;
+    } else if (Array.isArray(detail)) {
+      message = `Validation Error: ${detail
+        .map((d) => `${d.loc[d.loc.length - 1]}: ${d.msg}`)
+        .join(', ')}`;
+    } else if (error.response?.data?.error?.message) {
+      message = error.response.data.error.message;
+    } else {
+      message = error.message || 'Something went wrong. Please try again.';
+    }
 
     return Promise.reject(new Error(message));
   }

@@ -58,6 +58,13 @@ class TestDepressionEndpoint:
         response = client.post("/predict/depression", json={"Gender": 1})
         assert response.status_code == 422
 
+    def test_predict_depression_invalid_age_bounds(self, client):
+        """Out of bounds age should return 422."""
+        for bad_age in [14, 81, 0, 1000]:
+            bad_input = {**VALID_DEPRESSION_INPUT, "Age": bad_age}
+            response = client.post("/predict/depression", json=bad_input)
+            assert response.status_code == 422
+
     def test_predict_depression_model_not_loaded(self, client_no_models):
         """When models are not loaded, should return 503."""
         response = client_no_models.post(

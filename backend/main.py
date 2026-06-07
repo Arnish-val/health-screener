@@ -58,19 +58,19 @@ class DiseaseInput(BaseModel):
     symptoms: Dict[str, int]  # Expects dictionary of { symptom_name: 1 or 0 }
 
 class DepressionInput(BaseModel):
-    Gender: int
-    Age: int
-    Academic_Pressure: int
-    Work_Pressure: int
-    CGPA: float
-    Study_Satisfaction: int
-    Job_Satisfaction: int
-    Sleep_Duration: int
-    Dietary_Habits: int
-    Suicidal_Thoughts: int
-    Work_Study_Hours: float
-    Financial_Stress: int
-    Family_History: int
+    Gender: int = Field(..., ge=0, le=1)
+    Age: int = Field(..., ge=15, le=80)
+    Academic_Pressure: int = Field(..., ge=0, le=5)
+    Work_Pressure: int = Field(..., ge=0, le=5)
+    CGPA: float = Field(..., ge=0.0, le=10.0)
+    Study_Satisfaction: int = Field(..., ge=0, le=5)
+    Job_Satisfaction: int = Field(..., ge=0, le=5)
+    Sleep_Duration: int = Field(..., ge=0, le=3)
+    Dietary_Habits: int = Field(..., ge=0, le=2)
+    Suicidal_Thoughts: int = Field(..., ge=0, le=1)
+    Work_Study_Hours: float = Field(..., ge=0.0, le=24.0)
+    Financial_Stress: int = Field(..., ge=0, le=5)
+    Family_History: int = Field(..., ge=0, le=1)
 
 class AlzheimersInput(BaseModel):
     cognitive_scores: Dict[str, int] = Field(

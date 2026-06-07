@@ -27,11 +27,17 @@ export default function DepressionScreener() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const isAgeInvalid = metrics.Age < 15 || metrics.Age > 120 || isNaN(metrics.Age);
+
   const updateMetric = (key, val) => {
     setMetrics((prev) => ({ ...prev, [key]: parseFloat(val) }));
   };
 
   const handleSubmit = async () => {
+    if (isAgeInvalid) {
+      setError('Age must be between 15 and 120. Cannot evaluate risk with invalid inputs.');
+      return;
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -39,7 +45,26 @@ export default function DepressionScreener() {
       const res = await axios.post(`${API_URL}/predict/depression`, metrics);
       setResult(res.data);
     } catch (err) {
-      setError('Could not reach the prediction server. Make sure the backend is running.');
+      if (err.response) {
+        // Handle validation errors or explicit application exceptions
+        const resData = err.response.data;
+        if (resData && resData.error && resData.error.message) {
+          setError(resData.error.message);
+        } else if (resData && resData.detail) {
+          if (Array.isArray(resData.detail)) {
+            const detailsMsg = resData.detail
+              .map((d) => `${d.loc[d.loc.length - 1]}: ${d.msg}`)
+              .join(', ');
+            setError(`Validation Error — ${detailsMsg}`);
+          } else {
+            setError(`Validation Error — ${resData.detail}`);
+          }
+        } else {
+          setError(`Request failed with status code ${err.response.status}`);
+        }
+      } else {
+        setError('Could not reach the prediction server. Make sure the backend is running.');
+      }
     } finally {
       setLoading(false);
     }
@@ -76,9 +101,16 @@ export default function DepressionScreener() {
                </select>
             </div>
             
-            <div className="flex items-center justify-between">
-               <label className="text-sm text-slate-700 dark:text-slate-300">Age</label>
-               <input type="number" min="15" max="40" value={metrics.Age} onChange={e => updateMetric('Age', e.target.value)} className="glass-input w-20 rounded-lg px-3 py-1 outline-none text-sm text-emerald-700 dark:text-emerald-400 font-medium text-right"/>
+            <div className="space-y-1">
+               <div className="flex items-center justify-between">
+                  <label className="text-sm text-slate-700 dark:text-slate-300">Age</label>
+                  <input type="number" min="15" max="120" value={isNaN(metrics.Age) ? '' : metrics.Age} onChange={e => updateMetric('Age', e.target.value)} className={`glass-input w-20 rounded-lg px-3 py-1 outline-none text-sm font-medium text-right ${isAgeInvalid ? 'border-red-400 text-red-600 dark:text-red-400 focus:border-red-500' : 'text-emerald-700 dark:text-emerald-400'}`}/>
+               </div>
+               {isAgeInvalid && (
+                  <p className="text-xs text-red-500 dark:text-red-400 text-right mt-1">
+                     ⚠️ Age must be between 15 and 120.
+                  </p>
+               )}
             </div>
          </div>
 
@@ -172,8 +204,12 @@ export default function DepressionScreener() {
       {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={loading}
-        className="w-full py-4 rounded-2xl bg-[#059669] text-white text-base font-semibold shadow-lg shadow-[#059669]/25 hover:bg-[#047857] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
+        disabled={loading || isAgeInvalid}
+        className={`w-full py-4 rounded-2xl text-white text-base font-semibold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 ${
+          loading || isAgeInvalid
+            ? 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed shadow-none'
+            : 'bg-[#059669] shadow-[#059669]/25 hover:bg-[#047857] hover:-translate-y-0.5 active:scale-[0.98]'
+        }`}
       >
         {loading ? (
           <>
