@@ -188,9 +188,13 @@ function IntroStep({ onNext }) {
 }
 
 
-function CognitiveStep({ scores, onScoreChange, onNext, onBack }) {
+function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
   const [expandedDomain, setExpandedDomain] = useState(COGNITIVE_DOMAINS[0].id);
   const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+
+  const totalQuestions = 30;
+  const answeredCount = Object.values(answers).filter((v) => v === true || v === false).length;
+  const allAnswered = answeredCount === totalQuestions;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -247,17 +251,14 @@ function CognitiveStep({ scores, onScoreChange, onNext, onBack }) {
               {isExpanded && (
                 <div className="px-4 pb-4 space-y-2 border-t border-slate-700/50 pt-3">
                   {domain.questions.map((question, qi) => {
-                    // Track individual answers per question
                     const questionKey = `${domain.id}_q${qi}`;
                     return (
                       <QuestionRow
                         key={qi}
                         question={question}
-                        questionKey={questionKey}
-                        domain={domain}
                         colors={colors}
-                        scores={scores}
-                        onScoreChange={onScoreChange}
+                        answered={answers[questionKey]}
+                        onAnswer={(answeredVal) => onAnswerChange(questionKey, answeredVal)}
                       />
                     );
                   })}
@@ -268,12 +269,24 @@ function CognitiveStep({ scores, onScoreChange, onNext, onBack }) {
         })}
       </div>
 
+      {/* Progress & Warning */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 pt-2 border-t border-slate-800/40">
+        <span className="text-sm font-medium text-slate-400">
+          Progress: <strong className="text-white">{answeredCount}</strong> / {totalQuestions} questions answered
+        </span>
+        {!allAnswered && (
+          <span className="text-xs font-semibold text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+            ⚠️ Please answer all questions to proceed
+          </span>
+        )}
+      </div>
+
       {/* Navigation */}
       <div className="flex justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>
           <ChevronLeft className="w-4 h-4" /> Back
         </Button>
-        <Button variant="primary" onClick={onNext}>
+        <Button variant="primary" onClick={onNext} disabled={!allAnswered}>
           Continue to fMRI Upload <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -282,24 +295,13 @@ function CognitiveStep({ scores, onScoreChange, onNext, onBack }) {
 }
 
 
-function QuestionRow({ question, questionKey, domain, colors, scores, onScoreChange }) {
-  const [answered, setAnswered] = useState(null); // null | true | false
-
-  const handleAnswer = (correct) => {
-    const prevVal = answered === true ? 1 : 0;
-    const newVal = correct ? 1 : 0;
-    const delta = newVal - prevVal;
-    setAnswered(correct);
-    if (answered !== null && correct === answered) return;
-    onScoreChange(domain.id, (scores[domain.id] || 0) + delta);
-  };
-
+function QuestionRow({ question, colors, answered, onAnswer }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/40 hover:bg-slate-800/60 transition-colors">
       <p className="flex-1 text-sm text-slate-300">{question.q}</p>
       <div className="flex gap-1.5 shrink-0">
         <button
-          onClick={() => handleAnswer(true)}
+          onClick={() => onAnswer(true)}
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
             answered === true
               ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40'
@@ -309,7 +311,7 @@ function QuestionRow({ question, questionKey, domain, colors, scores, onScoreCha
           ✓ Yes
         </button>
         <button
-          onClick={() => handleAnswer(false)}
+          onClick={() => onAnswer(false)}
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
             answered === false
               ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/40'
@@ -640,16 +642,37 @@ function ResultsStep({ result, onReset }) {
 
 export default function AlzheimersScreener() {
   const [step, setStep] = useState('intro');
-  const [cognitiveScores, setCognitiveScores] = useState({
-    orientation: 0, memory: 0, attention: 0,
-    language: 0, executive: 0, visuospatial: 0,
-  });
+  const [answers, setAnswers] = useState({});
   const [fmriFile, setFmriFile] = useState(null);
   const [showProcessing, setShowProcessing] = useState(false);
   const { data: result, loading, error, execute, reset } = useApi(predictAlzheimers);
 
-  const handleCognitiveScoreChange = (domain, value) => {
-    setCognitiveScores((prev) => ({ ...prev, [domain]: Math.max(0, value) }));
+  const getDomainScore = (domainId) => {
+    const domain = COGNITIVE_DOMAINS.find(d => d.id === domainId);
+    return domain.questions.reduce((sum, q, idx) => {
+      return sum + (answers[`${domainId}_q${idx}`] === true ? q.points : 0);
+    }, 0);
+  };
+
+  const cognitiveScores = {
+    orientation: getDomainScore('orientation'),
+    memory: getDomainScore('memory'),
+    attention: getDomainScore('attention'),
+    language: getDomainScore('language'),
+    executive: getDomainScore('executive'),
+    visuospatial: getDomainScore('visuospatial'),
+  };
+
+  const handleAnswerChange = (questionKey, answeredValue) => {
+    setAnswers((prev) => {
+      const nextAnswers = { ...prev };
+      if (prev[questionKey] === answeredValue) {
+        delete nextAnswers[questionKey];
+      } else {
+        nextAnswers[questionKey] = answeredValue;
+      }
+      return nextAnswers;
+    });
   };
 
   const handleSubmit = async (includeFmri) => {
@@ -671,7 +694,7 @@ export default function AlzheimersScreener() {
 
   const handleReset = () => {
     setStep('intro');
-    setCognitiveScores({ orientation: 0, memory: 0, attention: 0, language: 0, executive: 0, visuospatial: 0 });
+    setAnswers({});
     setFmriFile(null);
     reset();
   };
@@ -692,7 +715,8 @@ export default function AlzheimersScreener() {
       {step === 'cognitive' && (
         <CognitiveStep
           scores={cognitiveScores}
-          onScoreChange={handleCognitiveScoreChange}
+          answers={answers}
+          onAnswerChange={handleAnswerChange}
           onNext={() => setStep('fmri')}
           onBack={() => setStep('intro')}
         />
