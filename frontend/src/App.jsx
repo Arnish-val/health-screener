@@ -20,7 +20,7 @@ function AppShell({ isDark, toggleTheme }) {
   const isLanding = location.pathname === '/';
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#020617] transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-[#F5F5F5] dark:bg-[#020617] transition-colors duration-300">
       <Navbar isDark={isDark} toggleTheme={toggleTheme} />
       {isLanding ? (
         <main className="flex-1 w-full">

@@ -148,12 +148,12 @@ function IntroStep({ onNext }) {
         <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 flex items-center justify-center shadow-2xl shadow-purple-500/30">
           <Brain className="w-10 h-10 text-white" />
         </div>
-        <h1 className="text-3xl md:text-4xl font-bold text-white">
+        <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white">
           Alzheimer's Disease <span className="bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">Screener</span>
         </h1>
-        <p className="text-slate-400 max-w-xl mx-auto leading-relaxed">
-          This assessment combines a <strong className="text-slate-300">cognitive evaluation</strong> (MOCA-based)
-          with <strong className="text-slate-300">fMRI brain connectivity analysis</strong> to produce a
+        <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto leading-relaxed">
+          This assessment combines a <strong className="text-slate-800 dark:text-slate-300">cognitive evaluation</strong> (MOCA-based)
+          with <strong className="text-slate-800 dark:text-slate-300">fMRI brain connectivity analysis</strong> to produce a
           comprehensive risk profile for Alzheimer's disease.
         </p>
       </div>
@@ -164,16 +164,16 @@ function IntroStep({ onNext }) {
           <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
             <Brain className="w-5 h-5 text-violet-400" />
           </div>
-          <h3 className="font-semibold text-white mb-1">Cognitive Assessment</h3>
-          <p className="text-sm text-slate-400">6 domains • 30 points • MOCA-style evaluation of memory, attention, executive function, and more.</p>
+          <h3 className="font-semibold text-slate-900 dark:text-white mb-1">Cognitive Assessment</h3>
+          <p className="text-sm text-slate-550 dark:text-slate-400">6 domains • 30 points • MOCA-style evaluation of memory, attention, executive function, and more.</p>
           <div className="mt-3 text-xs font-medium text-violet-400">Weight: 40%</div>
         </div>
         <div className="glass-panel rounded-2xl p-5 border border-cyan-500/20 hover:border-cyan-500/40 transition-all group">
           <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
             <BarChart3 className="w-5 h-5 text-cyan-400" />
           </div>
-          <h3 className="font-semibold text-white mb-1">fMRI Analysis</h3>
-          <p className="text-sm text-slate-400">Raw DICOM/NIfTI input • ADNI v4.5 processing • Default Mode Network analysis from resting-state fMRI.</p>
+          <h3 className="font-semibold text-slate-900 dark:text-white mb-1">fMRI Analysis</h3>
+          <p className="text-sm text-slate-550 dark:text-slate-400">Raw DICOM/NIfTI input • ADNI v4.5 processing • Default Mode Network analysis from resting-state fMRI.</p>
           <div className="mt-3 text-xs font-medium text-cyan-400">Weight: 60%</div>
         </div>
       </div>
@@ -203,12 +203,12 @@ function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
           <Brain className="w-6 h-6 text-violet-400" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-white">Cognitive Assessment</h2>
-          <p className="text-sm text-slate-400">Rate each item based on the patient's performance</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Cognitive Assessment</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Rate each item based on the patient's performance</p>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-2xl font-bold text-white">{totalScore}<span className="text-slate-500 text-lg">/30</span></div>
-          <div className="text-xs text-slate-500">Total Score</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white">{answeredCount}<span className="text-slate-500 text-lg">/30</span></div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Questions Answered</div>
         </div>
       </div>
 
@@ -218,29 +218,32 @@ function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
           const DomainIcon = domain.icon;
           const colors = DOMAIN_COLORS[domain.color];
           const isExpanded = expandedDomain === domain.id;
-          const domainScore = scores[domain.id] || 0;
+          const domainAnsweredCount = domain.questions.filter((_, idx) => {
+            const val = answers[`${domain.id}_q${idx}`];
+            return val === true || val === false;
+          }).length;
 
           return (
             <div key={domain.id} className={`glass-panel rounded-2xl overflow-hidden transition-all duration-300 ${isExpanded ? 'ring-1 ' + colors.ring : ''}`}>
               {/* Domain header */}
               <button
                 onClick={() => setExpandedDomain(isExpanded ? null : domain.id)}
-                className="w-full flex items-center gap-3 p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                className="w-full flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/5 transition-colors"
               >
                 <div className={`w-9 h-9 rounded-xl ${colors.bg} flex items-center justify-center`}>
                   <DomainIcon className={`w-5 h-5 ${colors.text}`} />
                 </div>
                 <div className="flex-1 text-left">
-                  <div className="font-semibold text-white text-sm">{domain.name}</div>
-                  <div className="text-xs text-slate-500">{domain.description}</div>
+                  <div className="font-semibold text-slate-900 dark:text-white text-sm">{domain.name}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{domain.description}</div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="text-sm font-mono text-slate-300">{domainScore}/{domain.max}</div>
+                  <div className="text-sm font-mono text-slate-700 dark:text-slate-300">{domainAnsweredCount}/{domain.questions.length}</div>
                   {/* Mini progress bar */}
-                  <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div
                       className={`h-full ${colors.fill} rounded-full transition-all duration-500`}
-                      style={{ width: `${(domainScore / domain.max) * 100}%` }}
+                      style={{ width: `${(domainAnsweredCount / domain.questions.length) * 100}%` }}
                     />
                   </div>
                   <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
@@ -249,7 +252,7 @@ function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
 
               {/* Questions */}
               {isExpanded && (
-                <div className="px-4 pb-4 space-y-2 border-t border-slate-700/50 pt-3">
+                <div className="px-4 pb-4 space-y-2 border-t border-slate-200 dark:border-slate-700/50 pt-3">
                   {domain.questions.map((question, qi) => {
                     const questionKey = `${domain.id}_q${qi}`;
                     return (
@@ -270,12 +273,12 @@ function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
       </div>
 
       {/* Progress & Warning */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 pt-2 border-t border-slate-800/40">
-        <span className="text-sm font-medium text-slate-400">
-          Progress: <strong className="text-white">{answeredCount}</strong> / {totalQuestions} questions answered
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 pt-2 border-t border-slate-200 dark:border-slate-800/40">
+        <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          Progress: <strong className="text-slate-900 dark:text-white">{answeredCount}</strong> / {totalQuestions} questions answered
         </span>
         {!allAnswered && (
-          <span className="text-xs font-semibold text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+          <span className="text-xs font-semibold text-amber-600 dark:text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
             ⚠️ Please answer all questions to proceed
           </span>
         )}
@@ -297,15 +300,15 @@ function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
 
 function QuestionRow({ question, colors, answered, onAnswer }) {
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/40 hover:bg-slate-800/60 transition-colors">
-      <p className="flex-1 text-sm text-slate-300">{question.q}</p>
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-100 dark:bg-slate-800/40 hover:bg-slate-200 dark:hover:bg-slate-800/60 transition-colors">
+      <p className="flex-1 text-sm text-slate-700 dark:text-slate-300">{question.q}</p>
       <div className="flex gap-1.5 shrink-0">
         <button
           onClick={() => onAnswer(true)}
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
             answered === true
-              ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40'
-              : 'bg-slate-700/50 text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-400'
+              ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/40'
+              : 'bg-slate-200 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400'
           }`}
         >
           ✓ Yes
@@ -314,8 +317,8 @@ function QuestionRow({ question, colors, answered, onAnswer }) {
           onClick={() => onAnswer(false)}
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
             answered === false
-              ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/40'
-              : 'bg-slate-700/50 text-slate-400 hover:bg-red-500/10 hover:text-red-400'
+              ? 'bg-red-500/20 text-red-600 dark:text-red-400 ring-1 ring-red-500/40'
+              : 'bg-slate-200 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
           }`}
         >
           ✗ No
@@ -351,8 +354,8 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
           <BarChart3 className="w-6 h-6 text-cyan-400" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-white">fMRI Data Upload</h2>
-          <p className="text-sm text-slate-400">Upload a resting-state fMRI DICOM series zip or NIfTI file (optional)</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">fMRI Data Upload</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Upload a resting-state fMRI DICOM series zip or NIfTI file (optional)</p>
         </div>
       </div>
 
@@ -368,7 +371,7 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
             ? 'border-cyan-400 bg-cyan-500/10 scale-[1.01]'
             : fmriFile
               ? 'border-emerald-500/50 bg-emerald-500/5'
-              : 'border-slate-600 bg-slate-800/30 hover:border-slate-500 hover:bg-slate-800/50'
+              : 'border-slate-300 dark:border-slate-600 bg-slate-100/50 dark:bg-slate-800/30 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
           }
         `}
         onClick={() => document.getElementById('fmri-file-input').click()}
@@ -384,28 +387,28 @@ function FmriStep({ fmriFile, onFileChange, onNext, onBack, loading }) {
           <div className="space-y-2">
             <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-400" />
             <p className="text-emerald-400 font-semibold">{fmriFile.name}</p>
-            <p className="text-xs text-slate-500">{(fmriFile.size / 1024).toFixed(1)} KB • Click to replace</p>
+            <p className="text-xs text-slate-550 dark:text-slate-500">{(fmriFile.size / 1024).toFixed(1)} KB • Click to replace</p>
           </div>
         ) : (
           <div className="space-y-3">
-            <Upload className="w-12 h-12 mx-auto text-slate-500" />
+            <Upload className="w-12 h-12 mx-auto text-slate-400 dark:text-slate-500" />
             <div>
-              <p className="text-slate-300 font-medium">Drop the patient's scan file here</p>
-              <p className="text-xs text-slate-500 mt-1">Use a .zip containing the full DICOM series, or upload .nii / .nii.gz</p>
+              <p className="text-slate-700 dark:text-slate-300 font-medium">Drop the patient's scan file here</p>
+              <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Use a .zip containing the full DICOM series, or upload .nii / .nii.gz</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Info box */}
-      <div className="glass-panel rounded-xl p-4 border border-slate-700/50">
+      <div className="glass-panel rounded-xl p-4 border border-slate-200 dark:border-slate-700/50">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-sm text-slate-400">
-            <p className="font-medium text-slate-300 mb-1">About Scan Uploads</p>
+          <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="font-semibold text-slate-800 dark:text-slate-300 mb-1">About Scan Uploads</p>
             <p>
               The backend converts DICOM to NIfTI, extracts Default Mode Network signals from
-              <strong className="text-white"> 11 ROIs</strong>, and predicts AD/CN from 110 connectivity features.
+              <strong className="text-slate-900 dark:text-white"> 11 ROIs</strong>, and predicts AD/CN from 110 connectivity features.
               If you don't have fMRI data, skip this step — the assessment will use only the cognitive scores.
             </p>
           </div>
@@ -514,14 +517,14 @@ function ResultsStep({ result, onReset }) {
             boxShadow: `0 0 40px ${result.risk_color}30`,
           }}
         >
-          <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center">
             <span style={{ color: result.risk_color }}>{riskPct}%</span>
           </div>
         </div>
-        <h2 className="text-2xl font-bold text-white">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
           {result.risk_level} Risk
         </h2>
-        <p className="text-slate-400 max-w-lg mx-auto text-sm leading-relaxed">
+        <p className="text-slate-500 dark:text-slate-400 max-w-lg mx-auto text-sm leading-relaxed">
           {result.recommendation}
         </p>
       </div>
@@ -535,12 +538,12 @@ function ResultsStep({ result, onReset }) {
               <Brain className="w-5 h-5 text-violet-400" />
             </div>
             <div>
-              <div className="font-semibold text-white">Cognitive Score</div>
-              <div className="text-xs text-slate-500">Weight: {Math.round(result.weights.cognitive * 100)}%</div>
+              <div className="font-semibold text-slate-900 dark:text-white">Cognitive Score</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Weight: {Math.round(result.weights.cognitive * 100)}%</div>
             </div>
             <div className="ml-auto text-right">
-              <div className="text-xl font-bold text-white">{result.cognitive.total_score}<span className="text-slate-500">/{result.cognitive.max_score}</span></div>
-              <div className="text-xs text-slate-500">Risk: {cogPct}%</div>
+              <div className="text-xl font-bold text-slate-900 dark:text-white">{result.cognitive.total_score}<span className="text-slate-500 dark:text-slate-400">/{result.cognitive.max_score}</span></div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Risk: {cogPct}%</div>
             </div>
           </div>
           {/* Domain bars */}
@@ -550,11 +553,11 @@ function ResultsStep({ result, onReset }) {
               const colors = DOMAIN_COLORS[domainDef?.color || 'cyan'];
               return (
                 <div key={domain} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 w-24 capitalize truncate">{domain}</span>
-                  <div className="flex-1 h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 w-24 capitalize truncate">{domain}</span>
+                  <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700/50 rounded-full overflow-hidden">
                     <div className={`h-full ${colors?.fill || 'bg-cyan-500'} rounded-full transition-all duration-700`} style={{ width: `${info.pct}%` }} />
                   </div>
-                  <span className="text-xs text-slate-500 w-10 text-right">{info.score}/{info.max}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 w-10 text-right">{info.score}/{info.max}</span>
                 </div>
               );
             })}
@@ -568,36 +571,36 @@ function ResultsStep({ result, onReset }) {
               <BarChart3 className="w-5 h-5 text-cyan-400" />
             </div>
             <div>
-              <div className="font-semibold text-white">fMRI Analysis</div>
-              <div className="text-xs text-slate-500">Weight: {Math.round(result.weights.fmri * 100)}%</div>
+              <div className="font-semibold text-slate-900 dark:text-white">fMRI Analysis</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Weight: {Math.round(result.weights.fmri * 100)}%</div>
             </div>
           </div>
           {result.fmri ? (
             <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-slate-800/40 rounded-xl">
-                <span className="text-sm text-slate-400">Prediction</span>
-                <span className={`text-sm font-bold ${result.fmri.prediction === 'AD' ? 'text-red-400' : 'text-emerald-400'}`}>
+              <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl">
+                <span className="text-sm text-slate-550 dark:text-slate-400">Prediction</span>
+                <span className={`text-sm font-bold ${result.fmri.prediction === 'AD' ? 'text-red-500' : 'text-emerald-500'}`}>
                   {result.fmri.prediction === 'AD' ? 'Alzheimer\'s Detected' : 'Cognitively Normal'}
                 </span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/40 rounded-xl">
-                <span className="text-sm text-slate-400">AD Probability</span>
-                <span className="text-sm font-bold text-white">{Math.round(result.fmri.probability_ad * 100)}%</span>
+              <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl">
+                <span className="text-sm text-slate-550 dark:text-slate-400">AD Probability</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">{Math.round(result.fmri.probability_ad * 100)}%</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/40 rounded-xl">
-                <span className="text-sm text-slate-400">Decision Score</span>
-                <span className="text-sm font-mono text-slate-300">{result.fmri.decision_score}</span>
+              <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl">
+                <span className="text-sm text-slate-550 dark:text-slate-400">Decision Score</span>
+                <span className="text-sm font-mono text-slate-700 dark:text-slate-300">{result.fmri.decision_score}</span>
               </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/40 rounded-xl">
-                <span className="text-sm text-slate-400">Features Used</span>
-                <span className="text-sm text-slate-300">{result.fmri.n_features_used}</span>
+              <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl">
+                <span className="text-sm text-slate-550 dark:text-slate-400">Features Used</span>
+                <span className="text-sm text-slate-700 dark:text-slate-300">{result.fmri.n_features_used}</span>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2 py-6 text-slate-500">
+            <div className="flex flex-col items-center gap-2 py-6 text-slate-550 dark:text-slate-500">
               <XCircle className="w-8 h-8" />
               <p className="text-sm">No fMRI data provided</p>
-              <p className="text-xs">Assessment based on cognitive scores only</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Assessment based on cognitive scores only</p>
             </div>
           )}
         </Card>
@@ -605,7 +608,7 @@ function ResultsStep({ result, onReset }) {
 
       {/* Weights diagram */}
       <div className="glass-panel rounded-2xl p-5">
-        <h3 className="font-semibold text-white mb-3 text-sm">Combined Score Breakdown</h3>
+        <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-sm">Combined Score Breakdown</h3>
         <div className="flex gap-2 h-4 rounded-full overflow-hidden">
           {result.weights.fmri > 0 && (
             <div
@@ -620,9 +623,9 @@ function ResultsStep({ result, onReset }) {
             title={`Cognitive: ${result.weights.cognitive * 100}%`}
           />
         </div>
-        <div className="flex justify-between mt-2 text-xs text-slate-500">
-          {result.weights.fmri > 0 && <span className="text-cyan-400">fMRI {result.weights.fmri * 100}%</span>}
-          <span className="text-violet-400 ml-auto">Cognitive {result.weights.cognitive * 100}%</span>
+        <div className="flex justify-between mt-2 text-xs text-slate-550 dark:text-slate-500">
+          {result.weights.fmri > 0 && <span className="text-cyan-500 dark:text-cyan-400">fMRI {result.weights.fmri * 100}%</span>}
+          <span className="text-violet-500 dark:text-violet-400 ml-auto">Cognitive {result.weights.cognitive * 100}%</span>
         </div>
       </div>
 

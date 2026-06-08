@@ -243,7 +243,7 @@ export default function LandingScreen() {
 
   return (
     /* Support both light and dark mode styles on the landing page */
-    <div className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-x-hidden transition-colors duration-300">
+    <div className="bg-[#F5F5F5] dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-x-hidden transition-colors duration-300">
 
       {/* ═══════════════════════════════════════════════════════════════
           SECTION 1 — HERO

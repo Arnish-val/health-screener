@@ -40,7 +40,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 body {
   font-family: var(--font-body);
-  @apply bg-slate-50 text-slate-900 transition-colors duration-300;
+  @apply bg-[#F5F5F5] text-slate-900 transition-colors duration-300;
 }
 
 .dark body {
@@ -55,14 +55,14 @@ h1, h2, h3, h4, h5, h6 {
    GLASSMORPHISM UTILITY CLASSES
    ═══════════════════════════════════════════════════════════════════ */
 .glass-panel {
-  @apply bg-white/80 border border-white/40 shadow-xl shadow-slate-200/50 backdrop-blur-xl transition-all duration-300;
+  @apply bg-white/90 border border-slate-200/60 shadow-xl shadow-slate-200/50 backdrop-blur-xl transition-all duration-300;
 }
 .dark .glass-panel {
   @apply bg-slate-900/60 border border-slate-700/50 shadow-2xl shadow-black/80;
 }
 
 .glass-card {
-  @apply bg-white/60 border border-white/60 shadow-sm backdrop-blur-lg hover:shadow-md transition-all duration-200;
+  @apply bg-white/70 border border-slate-200/50 shadow-sm backdrop-blur-lg hover:shadow-md transition-all duration-200;
 }
 .dark .glass-card {
   @apply bg-slate-800/40 border border-slate-700/50 shadow-black/40 hover:border-cyan-900/50 hover:bg-slate-800/60;
