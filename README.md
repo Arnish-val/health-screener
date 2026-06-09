@@ -76,7 +76,7 @@ Follow these instructions to run the application on your local machine.
        ```
 3. Start the development server using **Uvicorn**:
    ```bash
-   uvicorn main:app --reload
+   uvicorn app.main:app --reload
    ```
    *   *The API will start running locally at `http://127.0.0.1:8000`.*
    *   *Interactive documentation is available at `http://127.0.0.1:8000/docs`.*
