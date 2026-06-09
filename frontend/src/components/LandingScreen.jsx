@@ -451,19 +451,19 @@ export default function LandingScreen() {
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { title: 'Disease AI', desc: 'Top 3 condition ranking', icon: Stethoscope, bg: '#F8E37E' },
-              { title: 'Mental Health', desc: 'Anonymous risk scoring', icon: Brain, bg: '#9AE5C9' },
-              { title: 'Instant Results', desc: 'Analysis in seconds', icon: Zap, bg: '#F2CBD4' },
-              { title: 'Saved History', desc: 'Track your screenings', icon: BarChart3, bg: '#9BBEF8' },
-            ].map(({ title, desc, icon: Icon, bg }) => {
-              void Icon;
+              { title: 'Disease AI', desc: 'Top 3 condition ranking', icon: Stethoscope, bg: '#F8E37E', path: '/disease' },
+              { title: 'Mental Health', desc: 'Anonymous risk scoring', icon: Brain, bg: '#9AE5C9', path: '/depression' },
+              { title: 'Alzheimer\'s AI', desc: 'fMRI & cognitive screener', icon: Activity, bg: '#F2CBD4', path: '/alzheimers' },
+              { title: 'Saved History', desc: 'Track your screenings', icon: BarChart3, bg: '#9BBEF8', path: '/history' },
+            ].map(({ title, desc, icon: Icon, bg, path }) => {
               return (
                 <motion.div
                   key={title}
                   initial={{ opacity: 0, y: 24 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.25 }}
-                  className="min-h-[180px] rounded-[1.75rem] p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
+                  onClick={() => navigate(path)}
+                  className="min-h-[180px] rounded-[1.75rem] p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer select-none"
                   style={{ backgroundColor: bg }}
                 >
                   <div className="flex h-full flex-col justify-between">
