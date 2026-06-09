@@ -145,8 +145,49 @@ function IntroStep({ onNext }) {
     <div className="space-y-8 animate-fadeIn">
       {/* Hero */}
       <div className="text-center space-y-4">
-        <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 flex items-center justify-center shadow-2xl shadow-purple-500/30">
-          <Brain className="w-10 h-10 text-white" />
+        <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
+          {/* Animated glow rings */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-500/20 to-cyan-500/20 blur-xl animate-pulse" />
+          <div className="absolute w-28 h-28 rounded-full border border-violet-500/10 animate-spin" style={{ animationDuration: '12s' }} />
+          <div className="absolute w-24 h-24 rounded-full border border-dashed border-cyan-500/20 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }} />
+          
+          {/* Core high-tech brain connection SVG */}
+          <svg className="w-20 h-20 relative z-10" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="brainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#c084fc" />
+                <stop offset="50%" stopColor="#818cf8" />
+                <stop offset="100%" stopColor="#22d3ee" />
+              </linearGradient>
+              <filter id="glow-filter" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+            
+            {/* Left Hemisphere Outline */}
+            <path d="M50,15 C35,15 25,25 25,40 C25,48 30,53 30,58 C30,65 35,70 42,75 C45,77 48,80 50,85" stroke="url(#brainGrad)" strokeWidth="2.5" strokeLinecap="round" opacity="0.85" />
+            
+            {/* Right Hemisphere Outline */}
+            <path d="M50,15 C65,15 75,25 75,40 C75,48 70,53 70,58 C70,65 65,70 58,75 C55,77 52,80 50,85" stroke="url(#brainGrad)" strokeWidth="2.5" strokeLinecap="round" opacity="0.85" />
+            
+            {/* Internal neural paths */}
+            <path d="M50,22 C42,26 38,32 38,40 C38,46 44,48 50,55" stroke="url(#brainGrad)" strokeWidth="1.5" strokeDasharray="2 2" opacity="0.6" />
+            <path d="M50,22 C58,26 62,32 62,40 C62,46 56,48 50,55" stroke="url(#brainGrad)" strokeWidth="1.5" strokeDasharray="2 2" opacity="0.6" />
+            <path d="M30,42 H45 M70,42 H55 M32,54 Q42,50 50,58 M68,54 Q58,50 50,58" stroke="url(#brainGrad)" strokeWidth="1.2" opacity="0.5" />
+            
+            {/* Pulsing Synaptic Nodes */}
+            <circle cx="50" cy="15" r="3" fill="#c084fc" filter="url(#glow-filter)" className="animate-pulse" />
+            <circle cx="25" cy="40" r="3.5" fill="#a78bfa" filter="url(#glow-filter)" />
+            <circle cx="75" cy="40" r="3.5" fill="#22d3ee" filter="url(#glow-filter)" />
+            <circle cx="30" cy="58" r="3" fill="#818cf8" />
+            <circle cx="70" cy="58" r="3" fill="#818cf8" />
+            <circle cx="50" cy="85" r="4" fill="#22d3ee" filter="url(#glow-filter)" className="animate-pulse" />
+            
+            {/* Center connector core */}
+            <circle cx="50" cy="45" r="6" fill="url(#brainGrad)" opacity="0.9" />
+            <circle cx="50" cy="45" r="3" fill="#ffffff" />
+          </svg>
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white">
           Alzheimer's Disease <span className="bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">Screener</span>
