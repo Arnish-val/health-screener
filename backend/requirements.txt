@@ -5,6 +5,7 @@ pydantic==2.13.1
 pydantic-settings>=2.0.0
 
 # ── ML Runtime ───────────────────────────────────────
+# ML Runtime
 joblib==1.5.3
 numpy==2.3.5
 pandas==3.0.2
@@ -13,9 +14,8 @@ scipy==1.17.1
 xgboost==3.2.0
 nibabel>=5.2.0
 nilearn>=0.10.4
-antspyx>=0.5.4
+# antspyx>=0.5.4  # optional: enable later when ANTs model is ready
 tqdm>=4.66.0
-
 
 # ── Database & Auth ──────────────────────────────────
 sqlalchemy>=2.0.0
