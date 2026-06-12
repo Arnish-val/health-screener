@@ -109,12 +109,15 @@ export default function Footer() {
                 { icon: Stethoscope, text: '42 conditions detected'  },
                 { icon: Brain,       text: 'Depression risk scoring'  },
                 { icon: ShieldCheck, text: 'Kaggle cross-validated'   },
-              ].map(({ icon: Icon, text }) => (
+              ].map(({ icon: Icon, text }) => {
+                void Icon;
+                return (
                 <div key={text} className="flex items-center gap-2 text-xs text-slate-500">
                   <Icon className="w-3.5 h-3.5 text-[#106EBE] flex-shrink-0" />
                   {text}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

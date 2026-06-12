@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../../contexts/AuthContext';
+import { AuthContext } from '../../contexts/auth-context';
 import { historyApi } from '../../api/historyApi';
-import { Activity, Brain, Calendar, ArrowRight } from 'lucide-react';
+import { Activity, Brain, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+void motion;
 import TrendChart from './TrendChart';
 import { CardSkeleton } from '../ui/Skeleton';
 
@@ -24,7 +26,7 @@ export default function HistoryView() {
       try {
         const response = await historyApi.getHistory();
         setHistory(response.data);
-      } catch (err) {
+      } catch {
         setError('Failed to load history.');
       } finally {
         setLoading(false);

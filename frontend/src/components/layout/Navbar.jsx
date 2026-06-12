@@ -1,7 +1,7 @@
 import { Activity, Sun, Moon, Menu, X, LogIn, LogOut, History } from 'lucide-react';
 import { useState, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AuthContext } from '../../contexts/AuthContext';
+import { AuthContext } from '../../contexts/auth-context';
 
 /**
  * Site navigation bar

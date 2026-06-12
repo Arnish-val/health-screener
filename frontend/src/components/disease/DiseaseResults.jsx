@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Badge from '../ui/Badge';
-import { AuthContext } from '../../contexts/AuthContext';
+import { AuthContext } from '../../contexts/auth-context';
 import { LogIn } from 'lucide-react';
 
 /**

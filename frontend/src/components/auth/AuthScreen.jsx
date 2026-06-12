@@ -1,9 +1,11 @@
 import { useState, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AuthContext } from '../../contexts/AuthContext';
+import { AuthContext } from '../../contexts/auth-context';
 import { authApi } from '../../api/authApi';
 import { Stethoscope, LogIn, UserPlus, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+void motion;
 
 /**
  * AuthScreen — login + registration form.

@@ -456,6 +456,7 @@ export default function LandingScreen() {
               { title: 'Alzheimer\'s AI', desc: 'fMRI & cognitive screener', icon: Activity, bg: '#F2CBD4', path: '/alzheimers' },
               { title: 'Saved History', desc: 'Track your screenings', icon: BarChart3, bg: '#9BBEF8', path: '/history' },
             ].map(({ title, desc, icon: Icon, bg, path }) => {
+              void Icon;
               return (
                 <motion.div
                   key={title}

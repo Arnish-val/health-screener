@@ -2,7 +2,7 @@ import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Info, LogIn } from 'lucide-react';
 import ProgressBar from '../ui/ProgressBar';
-import { AuthContext } from '../../contexts/AuthContext';
+import { AuthContext } from '../../contexts/auth-context';
 
 /**
  * Depression risk result display with progress bar and action advice.

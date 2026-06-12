@@ -1,30 +1,27 @@
-import { createContext, useState, useEffect } from 'react';
+import { useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
-
-export const AuthContext = createContext(null);
+import { AuthContext } from './auth-context';
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Check for token on mount
+  const [user, setUser] = useState(() => {
+    // Initialize user synchronously from localStorage to avoid
+    // calling setState inside useEffect (react-hooks/set-state-in-effect).
     const token = localStorage.getItem('token');
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        // Simple check for expiration
         if (decoded.exp * 1000 < Date.now()) {
-          logout();
-        } else {
-          setUser({ email: decoded.sub });
+          localStorage.removeItem('token');
+          return null;
         }
-      } catch (err) {
-        logout();
+        return { email: decoded.sub };
+      } catch {
+        localStorage.removeItem('token');
+        return null;
       }
     }
-    setLoading(false);
-  }, []);
+    return null;
+  });
 
   const login = (token) => {
     localStorage.setItem('token', token);
@@ -38,8 +35,8 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {!loading && children}
+    <AuthContext.Provider value={{ user, login, logout, loading: false }}>
+      {children}
     </AuthContext.Provider>
   );
 }

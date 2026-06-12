@@ -229,9 +229,9 @@ function IntroStep({ onNext }) {
 }
 
 
-function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
+function CognitiveStep({ answers, onAnswerChange, onNext, onBack }) {
   const [expandedDomain, setExpandedDomain] = useState(COGNITIVE_DOMAINS[0].id);
-  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+
 
   const totalQuestions = 30;
   const answeredCount = Object.values(answers).filter((v) => v === true || v === false).length;
@@ -300,7 +300,6 @@ function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
                       <QuestionRow
                         key={qi}
                         question={question}
-                        colors={colors}
                         answered={answers[questionKey]}
                         onAnswer={(answeredVal) => onAnswerChange(questionKey, answeredVal)}
                       />
@@ -339,7 +338,7 @@ function CognitiveStep({ scores, answers, onAnswerChange, onNext, onBack }) {
 }
 
 
-function QuestionRow({ question, colors, answered, onAnswer }) {
+function QuestionRow({ question, answered, onAnswer }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-100 dark:bg-slate-800/40 hover:bg-slate-200 dark:hover:bg-slate-800/60 transition-colors">
       <p className="flex-1 text-sm text-slate-700 dark:text-slate-300">{question.q}</p>
@@ -491,7 +490,7 @@ function ProcessingOverlay() {
       setStep((s) => (s < steps.length - 1 ? s + 1 : s));
     }, 800);
     return () => clearInterval(interval);
-  }, []);
+  }, [steps.length]);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center">
@@ -758,7 +757,6 @@ export default function AlzheimersScreener() {
 
       {step === 'cognitive' && (
         <CognitiveStep
-          scores={cognitiveScores}
           answers={answers}
           onAnswerChange={handleAnswerChange}
           onNext={() => setStep('fmri')}
