@@ -1,6 +1,6 @@
 # 🩺 Unified Health & Wellness Screener
 
-![CI](https://https://github.com/Arnish-val/health-screener/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Arnish-val/health-screener/actions/workflows/ci.yml/badge.svg)
 ![React](https://img.shields.io/badge/React-20232A?logo=react)
 
 An end-to-end, full-stack intelligence platform that leverages Machine Learning to provide preliminary health screenings and mental wellness risk assessments. By combining a responsive, state-of-the-art React frontend with a high-performance Python FastAPI microservice, the platform delivers instant, interactive risk analysis and educational guidance.
