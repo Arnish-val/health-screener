@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_PREFIX: str = "/api/v1"
 
+    # ── Database ─────────────────────────────────────────────────
+    # Override with a PostgreSQL URL in production (Render env vars):
+    #   DATABASE_URL=postgresql://user:password@host/dbname
+    DATABASE_URL: str = "sqlite:///./health_screener.db"
+
+    # ── Security ─────────────────────────────────────────────────
+    # MUST be overridden in production via environment variable.
+    SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+
     # ── CORS ─────────────────────────────────────────────────────
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
