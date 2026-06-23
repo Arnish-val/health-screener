@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Info, LogIn } from 'lucide-react';
+import { Info, LogIn, Phone, AlertTriangle } from 'lucide-react';
 import ProgressBar from '../ui/ProgressBar';
 import { AuthContext } from '../../contexts/auth-context';
 
@@ -68,6 +68,94 @@ export default function RiskResults({ result }) {
           <p className="text-sm text-blue-700 dark:text-blue-400 leading-relaxed">
             {result.feedback}
           </p>
+        </div>
+      )}
+
+      {/* ── High Risk: Government Helpline Banner ──────────────────────────── */}
+      {result.risk_level === 'High' && (
+        <div className="mt-2 rounded-2xl border border-red-300 dark:border-red-700/60 bg-red-50 dark:bg-red-900/25 overflow-hidden">
+          {/* Header strip */}
+          <div className="flex items-center gap-2 px-4 py-3 bg-red-100 dark:bg-red-900/40 border-b border-red-200 dark:border-red-700/40">
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-red-700 dark:text-red-300">
+              Your score indicates a high risk — you are not alone.
+            </p>
+          </div>
+
+          {/* Body */}
+          <div className="px-4 py-4 space-y-3">
+            <p className="text-sm text-red-700 dark:text-red-300 leading-relaxed">
+              Please reach out to a trained mental-health professional today.
+              These free, confidential Indian government-supported helplines are
+              available <strong>24 hours a day, 7 days a week</strong>.
+            </p>
+
+            {/* Helpline cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                {
+                  name: 'iCall (TISS)',
+                  number: '9152987821',
+                  desc: 'Mon–Sat, 8 am – 10 pm',
+                  color: 'bg-white dark:bg-slate-800/60',
+                },
+                {
+                  name: 'Vandrevala Foundation',
+                  number: '1860-2662-345',
+                  desc: '24 × 7 helpline',
+                  color: 'bg-white dark:bg-slate-800/60',
+                },
+                {
+                  name: 'NIMHANS Helpline',
+                  number: '080-46110007',
+                  desc: 'National mental health line',
+                  color: 'bg-white dark:bg-slate-800/60',
+                },
+                {
+                  name: 'Snehi NGO',
+                  number: '044-24640050',
+                  desc: 'Emotional support & counselling',
+                  color: 'bg-white dark:bg-slate-800/60',
+                },
+              ].map(({ name, number, desc, color }) => (
+                <a
+                  key={name}
+                  href={`tel:${number.replace(/\D/g, '')}`}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-800/40 ${color} hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors group`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center flex-shrink-0 group-hover:bg-red-200 dark:group-hover:bg-red-800/60 transition-colors">
+                    <Phone className="w-4 h-4 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{name}</p>
+                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 tabular-nums">{number}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{desc}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            <p className="text-xs text-red-500 dark:text-red-500 italic">
+              This tool is not a clinical diagnosis. Please consult a qualified
+              healthcare professional for an official evaluation.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Low Risk: Positive reinforcement note ─────────────────────────── */}
+      {result.risk_level === 'Low' && (
+        <div className="mt-2 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 flex items-start gap-3">
+          <span className="text-xl flex-shrink-0 mt-0.5" aria-hidden="true">🌿</span>
+          <div>
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+              Your score is reassuringly low — great news!
+            </p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 leading-relaxed">
+              Keep up the healthy habits. If you ever feel overwhelmed, iCall (9152987821) 
+              and the Vandrevala Foundation (1860-2662-345) are always available for a chat.
+            </p>
+          </div>
         </div>
       )}
 
