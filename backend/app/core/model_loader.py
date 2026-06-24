@@ -38,21 +38,43 @@ async def lifespan(app: FastAPI):
         logger.warning("Disease pipeline not found at %s", disease_path)
         app.state.disease_pipeline = None
 
-    # Mental health pipeline
-    mh_path = settings.MODEL_DIR / "mental_health_pipeline.joblib"
-    if mh_path.exists():
+    # Student Mental health pipeline
+    student_path = settings.MODEL_DIR / "depression_student_pipeline.joblib"
+    if student_path.exists():
         try:
-            artifacts = joblib.load(mh_path)
-            app.state.mh_pipeline = artifacts["pipeline"]
-            app.state.mh_features = artifacts["feature_names"]
-            app.state.mh_risk_bands = artifacts["risk_bands"]
-            logger.info("Mental health pipeline loaded successfully.")
+            artifacts = joblib.load(student_path)
+            app.state.depression_student_pipeline = artifacts["pipeline"]
+            app.state.depression_student_features = artifacts["feature_names"]
+            app.state.depression_student_risk_bands = artifacts["risk_bands"]
+            logger.info("Student depression pipeline loaded successfully.")
         except Exception as e:
-            logger.error("Failed to load mental health pipeline: %s", e)
-            app.state.mh_pipeline = None
+            logger.error("Failed to load student depression pipeline: %s", e)
+            app.state.depression_student_pipeline = None
     else:
-        logger.warning("Mental health pipeline not found at %s", mh_path)
-        app.state.mh_pipeline = None
+        logger.warning("Student depression pipeline not found at %s", student_path)
+        app.state.depression_student_pipeline = None
+
+    # Professional Mental health pipeline
+    professional_path = settings.MODEL_DIR / "depression_professional_pipeline.joblib"
+    if professional_path.exists():
+        try:
+            artifacts = joblib.load(professional_path)
+            app.state.depression_professional_pipeline = artifacts["pipeline"]
+            app.state.depression_professional_features = artifacts["feature_names"]
+            app.state.depression_professional_risk_bands = artifacts["risk_bands"]
+            app.state.depression_professional_categorical_encoder = artifacts.get("categorical_encoder", None)
+            app.state.depression_professional_categorical_columns = artifacts.get("categorical_columns", [])
+            logger.info("Professional depression pipeline loaded successfully.")
+        except Exception as e:
+            logger.error("Failed to load professional depression pipeline: %s", e)
+            app.state.depression_professional_pipeline = None
+            app.state.depression_professional_categorical_encoder = None
+            app.state.depression_professional_categorical_columns = None
+    else:
+        logger.warning("Professional depression pipeline not found at %s", professional_path)
+        app.state.depression_professional_pipeline = None
+        app.state.depression_professional_categorical_encoder = None
+        app.state.depression_professional_categorical_columns = None
 
     # Alzheimer's disease pipeline / raw ADNI model
     alz_model_path = settings.MODEL_DIR / "svm_model_final.joblib"
@@ -96,6 +118,8 @@ async def lifespan(app: FastAPI):
     # Cleanup
     logger.info("Shutting down — releasing model references.")
     app.state.disease_pipeline = None
+    app.state.depression_student_pipeline = None
+    app.state.depression_professional_pipeline = None
     app.state.mh_pipeline = None
     app.state.alz_pipeline = None
     app.state.alz_scaler = None
@@ -118,6 +142,26 @@ def get_mh_artifacts(request: Request) -> dict:
         "pipeline": getattr(request.app.state, "mh_pipeline", None),
         "features": getattr(request.app.state, "mh_features", None),
         "risk_bands": getattr(request.app.state, "mh_risk_bands", None),
+    }
+
+
+def get_depression_student_artifacts(request: Request) -> dict:
+    """FastAPI dependency: returns student depression model artifacts from app.state."""
+    return {
+        "pipeline": getattr(request.app.state, "depression_student_pipeline", None),
+        "features": getattr(request.app.state, "depression_student_features", None),
+        "risk_bands": getattr(request.app.state, "depression_student_risk_bands", None),
+    }
+
+
+def get_depression_professional_artifacts(request: Request) -> dict:
+    """FastAPI dependency: returns professional depression model artifacts from app.state."""
+    return {
+        "pipeline": getattr(request.app.state, "depression_professional_pipeline", None),
+        "features": getattr(request.app.state, "depression_professional_features", None),
+        "risk_bands": getattr(request.app.state, "depression_professional_risk_bands", None),
+        "categorical_encoder": getattr(request.app.state, "depression_professional_categorical_encoder", None),
+        "categorical_columns": getattr(request.app.state, "depression_professional_categorical_columns", None),
     }
 
 
