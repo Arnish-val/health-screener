@@ -1,34 +1,36 @@
 {
-    "kaggle_data_used": {
-        "disease": false,
-        "mental_health": false
+    "version": "4.0.0",
+    "datasets_used": {
+        "disease": true,
+        "disease_extra": false,
+        "student": true,
+        "professional": true
     },
-    "disease_predictor": {
-        "dataset": "kaushil268/disease-prediction-using-machine-learning",
-        "model": "Random Forest (Platt-calibrated, auto-selected)",
-        "input": "132 binary symptom flags",
-        "output": "top-3 disease predictions + confidence %",
-        "metrics": {
-            "accuracy": 0.9502,
-            "f1_weighted": 0.9502,
-            "cv_f1": 0.9605
+    "results": {
+        "disease_predictor": {
+            "accuracy": 0.9634,
+            "f1_weighted": 0.9634,
+            "top3_accuracy": 0.9898,
+            "cv_f1": 0.9667,
+            "raw_accuracy": 0.9624,
+            "raw_f1": 0.9623
+        },
+        "depression_student": {
+            "accuracy": 0.9328,
+            "f1_weighted": 0.9325,
+            "roc_auc": 0.9371,
+            "brier_score": 0.073,
+            "tuned_threshold": 0.464,
+            "cv_roc_auc": 0.9438
+        },
+        "depression_professional": {
+            "accuracy": 0.8095,
+            "f1_weighted": 0.8094,
+            "roc_auc": 0.8913,
+            "brier_score": 0.1309,
+            "tuned_threshold": 0.37,
+            "cv_roc_auc": 0.9081
         }
     },
-    "mental_health_screener": {
-        "dataset": "adilshamim8/student-depression-dataset",
-        "model": "Gradient Boosting or RF (auto-selected by ROC-AUC)",
-        "input": "13 lifestyle/academic/demographic features",
-        "output": "depression probability + risk level (Low/Moderate/High)",
-        "metrics": {
-            "accuracy": 0.9192,
-            "f1_weighted": 0.9191,
-            "roc_auc": 0.9362,
-            "cv_roc_auc": 0.9414
-        }
-    },
-    "total_training_time_sec": 24.37,
-    "saved_models": [
-        "models/disease_pipeline.joblib",
-        "models/mental_health_pipeline.joblib"
-    ]
+    "total_training_time_sec": 200.1
 }
