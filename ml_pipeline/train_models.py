@@ -1,21 +1,37 @@
 """
-Health & Wellness Screener — Production ML Pipeline (v3.0)
+Health & Wellness Screener — Production ML Pipeline (v4.0)
 ==========================================================
-Trains two production-ready calibrated classifiers on real Kaggle datasets.
+Trains THREE production-ready calibrated classifiers.
 
   PIPELINE A — Disease Predictor
     Dataset : kaushil268/disease-prediction-using-machine-learning
-              data/raw/disease_training.csv  (4920 × 133)
-    Input   : 132 binary symptom flags
-    Output  : top-3 diseases + calibrated confidence scores
-    Model   : Auto-selected + tuned + soft-voting ensemble (Platt-calibrated)
+              data/raw/disease_training.csv  (4920 x 133)
+    Optional augmentation (recommended, fixes "vague Hepatitis-type" results):
+              dhivyeshrk/diseases-and-symptoms-dataset
+              data/raw/disease_extra.csv  (773 diseases, 377 symptoms, 246k rows)
+    NEW in v4.0: detects diseases whose symptom signatures are statistically
+    indistinguishable in the training data (e.g. Hepatitis B/C/D very often
+    are, in the 132-symptom kaushil268 schema) and reports them as a grouped
+    "clinical cluster" instead of pretending the model can split them.
 
-  PIPELINE B — Mental Health / Depression Screener
+  PIPELINE B1 — Student Depression Screener
     Dataset : adilshamim8/student-depression-dataset
-              data/raw/mental_health.csv  (27901 × 18)
-    Input   : lifestyle + academic metrics (13 features after engineering)
-    Output  : Depression risk (0/1) + probability score + risk level
-    Model   : Auto-selected + tuned + soft-voting ensemble (calibrated)
+              data/raw/mental_health_student.csv  (27901 x 18)
+    Input   : academic/lifestyle features (CGPA, academic pressure, sleep...)
+
+  PIPELINE B2 — Working Professional Depression/Burnout Screener   [NEW]
+    Dataset : osmi/mental-health-in-tech-survey
+              data/raw/mental_health_professional.csv  (~1259 x 27, 2014 survey)
+    Input   : workplace features (remote work, company size, benefits,
+              work interference, family history, leave policy...)
+    Target  : `treatment` (sought mental-health treatment) used as the
+              depression/burnout-risk proxy label, since this survey has
+              no direct "Depression" column.
+
+Both B1 and B2 are deliberately kept as SEPARATE models with separate
+feature schemas and separately-tuned risk thresholds — blending student
+academic-stress signal with workplace-burnout signal into one model would
+just average away both signals.
 
 Run:
     python train_models.py
@@ -23,28 +39,14 @@ Run:
 Requirements:
     pip install scikit-learn pandas numpy joblib
 
-Changes vs v2.0:
-  - 3-way train/cal/test split (proper held-out calibration set)
-  - cv="prefit" on CalibratedClassifierCV (correct sklearn 1.4+ usage)
-  - RandomizedSearchCV tuning on top-2 candidate models
-  - Soft-voting VotingClassifier ensemble of top-2 tuned models
-  - 5-fold CV (was 3-fold) for more stable estimates
-  - class_weight applied only when imbalance ratio > 3x
-  - StandardScaler removed from tree pipelines (zero effect on trees)
-  - GradientBoosting early-stopping via n_iter_no_change
-  - top-3 accuracy metric added (meaningful since UI shows top-3)
-  - Feature importances from fitted estimators_ (not pre-fit estimators)
-  - VotingClassifier nested n_jobs fixed (no deadlock on Windows)
-  - disease_testing.csv merge preserved
-  - Synthetic data fallback preserved for offline use
-
-Version : 3.0.0
+Version : 4.0.0
 """
 
 import time
 import warnings
 import json
 from pathlib import Path
+from itertools import combinations
 
 import numpy as np
 import pandas as pd
@@ -55,10 +57,11 @@ from sklearn.ensemble import (
     GradientBoostingClassifier,
     ExtraTreesClassifier,
     VotingClassifier,
+    StackingClassifier,
 )
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler, LabelEncoder, OrdinalEncoder
 from sklearn.model_selection import (
     train_test_split,
     StratifiedKFold,
@@ -71,8 +74,15 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
     top_k_accuracy_score,
+    brier_score_loss,
+    precision_recall_curve,
 )
 from sklearn.calibration import CalibratedClassifierCV
+try:
+    from sklearn.calibration import FrozenEstimator
+    HAS_FROZEN_ESTIMATOR = True
+except ImportError:
+    HAS_FROZEN_ESTIMATOR = False
 from sklearn.impute import SimpleImputer
 
 warnings.filterwarnings("ignore")
@@ -85,7 +95,9 @@ MODELS_DIR.mkdir(exist_ok=True)
 
 DISEASE_TRAIN_CSV = DATA_DIR / "disease_training.csv"
 DISEASE_TEST_CSV  = DATA_DIR / "disease_testing.csv"
-MENTAL_CSV        = DATA_DIR / "mental_health.csv"
+DISEASE_EXTRA_CSV = DATA_DIR / "disease_extra.csv"          # dhivyeshrk dataset (optional)
+MENTAL_STUDENT_CSV       = DATA_DIR / "mental_health_student.csv"
+MENTAL_PROFESSIONAL_CSV  = DATA_DIR / "mental_health_professional.csv"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -93,7 +105,7 @@ MENTAL_CSV        = DATA_DIR / "mental_health.csv"
 # ══════════════════════════════════════════════════════════════════════════════
 
 def banner(title: str) -> None:
-    w = 68
+    w = 70
     print(f"\n{'=' * w}\n  {title}\n{'=' * w}")
 
 
@@ -101,9 +113,83 @@ def section(title: str) -> None:
     print(f"\n  -- {title} --")
 
 
+def _make_ensemble(clf1_name, clf1, clf2_name, clf2, stacking=False, task="clf"):
+    """Soft-voting or stacking ensemble of two tuned models."""
+    estimators = [
+        (clf1_name.lower().replace(" ", "_"), clf1),
+        (clf2_name.lower().replace(" ", "_"), clf2),
+    ]
+    if stacking:
+        # Stacking with a logistic meta-learner usually yields better-calibrated
+        # probabilities than plain soft-voting.
+        return StackingClassifier(
+            estimators=estimators,
+            final_estimator=LogisticRegression(max_iter=1000),
+            stack_method="predict_proba",
+            n_jobs=1,
+            cv=3,
+        )
+    return VotingClassifier(estimators=estimators, voting="soft", n_jobs=1)
+
+
+def _get_feature_importances(clf, feature_names):
+    if hasattr(clf, "estimators_"):
+        for est in clf.estimators_:
+            inner = est
+            if hasattr(inner, "named_steps"):
+                inner = inner.named_steps.get("clf", inner)
+            if hasattr(inner, "feature_importances_"):
+                return pd.Series(inner.feature_importances_, index=feature_names)
+    if hasattr(clf, "feature_importances_"):
+        return pd.Series(clf.feature_importances_, index=feature_names)
+    return None
+
+
+def tune_threshold(y_true, y_prob, target_metric="f1"):
+    """Pick the probability threshold that maximizes F1 on a PR curve,
+    instead of hardcoding 0.5 / 0.35 / 0.65 by guesswork."""
+    precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+    f1s = 2 * precision * recall / np.clip(precision + recall, 1e-9, None)
+    best_idx = np.nanargmax(f1s[:-1]) if len(thresholds) else 0
+    best_thr = thresholds[best_idx] if len(thresholds) else 0.5
+    return float(best_thr), float(f1s[best_idx]) if len(thresholds) else 0.0
+
+
+def find_confusable_disease_clusters(df: pd.DataFrame, symptom_cols: list, target_col: str,
+                                     similarity_threshold: float = 0.92) -> list:
+    """
+    NEW v4.0 — Identifies groups of diseases whose mean symptom vectors are
+    nearly identical (cosine similarity above threshold). These are diseases
+    the model CANNOT reliably separate given this symptom schema, no matter
+    how good the classifier is (this is exactly why Hepatitis subtypes get
+    confused in the kaushil268 dataset). Returns a list of disease-name sets.
+    """
+    profiles = df.groupby(target_col)[symptom_cols].mean()
+    names = profiles.index.tolist()
+    vecs = profiles.values
+    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    unit_vecs = vecs / norms
+    sim_matrix = unit_vecs @ unit_vecs.T
+
+    clusters = []
+    visited = set()
+    for i, j in combinations(range(len(names)), 2):
+        if sim_matrix[i, j] >= similarity_threshold:
+            pair = {names[i], names[j]}
+            merged = False
+            for c in clusters:
+                if c & pair:
+                    c |= pair
+                    merged = True
+                    break
+            if not merged:
+                clusters.append(pair)
+    return [sorted(c) for c in clusters]
+
+
 def evaluate_classifier(name: str, model, X_test, y_test,
                          classes=None, binary: bool = False) -> dict:
-    """Unified evaluation for multi-class and binary classifiers."""
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)
 
@@ -118,9 +204,16 @@ def evaluate_classifier(name: str, model, X_test, y_test,
 
     if binary:
         auc = roc_auc_score(y_test, y_prob[:, 1])
+        brier = brier_score_loss(y_test, y_prob[:, 1])
         print(f"    ROC-AUC     : {auc:.4f}")
+        print(f"    Brier score : {brier:.4f}  (lower = better calibrated)")
         print(f"\n{classification_report(y_test, y_pred, target_names=['No Depression','Depression'], zero_division=0)}")
         metrics["roc_auc"] = round(auc, 4)
+        metrics["brier_score"] = round(brier, 4)
+
+        best_thr, best_f1 = tune_threshold(y_test, y_prob[:, 1])
+        print(f"    Tuned threshold (max F1) : {best_thr:.3f}  (F1={best_f1:.4f}, vs F1@0.5 above)")
+        metrics["tuned_threshold"] = round(best_thr, 3)
     else:
         n_classes = len(np.unique(y_test))
         k = min(3, n_classes)
@@ -132,49 +225,80 @@ def evaluate_classifier(name: str, model, X_test, y_test,
     return metrics
 
 
-def check_data_files() -> tuple[bool, bool]:
-    """Check which Kaggle files are present."""
-    return DISEASE_TRAIN_CSV.exists(), MENTAL_CSV.exists()
+def check_data_files() -> dict:
+    return {
+        "disease": DISEASE_TRAIN_CSV.exists(),
+        "disease_extra": DISEASE_EXTRA_CSV.exists(),
+        "student": MENTAL_STUDENT_CSV.exists(),
+        "professional": MENTAL_PROFESSIONAL_CSV.exists(),
+    }
 
 
-def _make_ensemble(clf1_name: str, clf1, clf2_name: str, clf2):
-    """Build a soft-voting ensemble. n_jobs=1 on the Voting wrapper to avoid
-    nested parallelism deadlock (sub-estimators already use n_jobs=-1)."""
-    return VotingClassifier(
-        estimators=[
-            (clf1_name.lower().replace(" ", "_"), clf1),
-            (clf2_name.lower().replace(" ", "_"), clf2),
-        ],
-        voting="soft",
-        n_jobs=1,          # avoid nested joblib deadlock on Windows
-    )
+# ══════════════════════════════════════════════════════════════════════════════
+# SHARED: generic tuned-ensemble training routine (multi-class or binary)
+# ══════════════════════════════════════════════════════════════════════════════
 
+def train_tuned_ensemble(X_train, y_train, candidates: dict, param_grids: dict,
+                         scoring: str, cv, n_iter=15, use_stacking=False):
+    """Step 1-3 shared by all three pipelines: compare candidates, tune top-2,
+    ensemble them, keep whichever scores best."""
+    section("Step 1 — Candidate model comparison")
+    cv_results = {}
+    for name, clf in candidates.items():
+        t0 = time.perf_counter()
+        scores = cross_val_score(clf, X_train, y_train, cv=cv, scoring=scoring, n_jobs=-1)
+        elapsed = time.perf_counter() - t0
+        cv_results[name] = scores.mean()
+        print(f"    {name:<22}  CV {scoring} = {scores.mean():.4f} +/- {scores.std():.4f}  [{elapsed:.1f}s]")
 
-def _get_feature_importances(clf, feature_names):
-    """Safely extract feature importances from a plain or ensemble classifier."""
-    # VotingClassifier: look in estimators_ (post-fit attribute)
-    if hasattr(clf, "estimators_"):
-        for est in clf.estimators_:
-            if hasattr(est, "feature_importances_"):
-                return pd.Series(est.feature_importances_, index=feature_names)
-    if hasattr(clf, "feature_importances_"):
-        return pd.Series(clf.feature_importances_, index=feature_names)
-    return None
+    section("Step 2 — RandomizedSearchCV on top-2 candidates")
+    sorted_cv = sorted(cv_results.items(), key=lambda x: x[1], reverse=True)
+    top2_names = [n for n, _ in sorted_cv[:2]]
+    print(f"  Tuning: {top2_names}")
+
+    tuned, tuned_scores = {}, {}
+    for name in top2_names:
+        base_est, grid = param_grids[name]
+        search = RandomizedSearchCV(base_est, grid, n_iter=n_iter, cv=cv,
+                                    scoring=scoring, n_jobs=-1, random_state=42)
+        t0 = time.perf_counter()
+        search.fit(X_train, y_train)
+        elapsed = time.perf_counter() - t0
+        tuned[name] = search.best_estimator_
+        tuned_scores[name] = search.best_score_
+        print(f"    {name:<22}  Tuned {scoring} = {search.best_score_:.4f}  [{elapsed:.1f}s]")
+        print(f"      Best params: {search.best_params_}")
+
+    section("Step 3 — Ensemble (top-2 tuned models)")
+    n1, n2 = top2_names
+    ensemble = _make_ensemble(n1, tuned[n1], n2, tuned[n2], stacking=use_stacking)
+    t0 = time.perf_counter()
+    ens_scores = cross_val_score(ensemble, X_train, y_train, cv=cv, scoring=scoring, n_jobs=-1)
+    elapsed = time.perf_counter() - t0
+
+    best_tuned_score = max(tuned_scores.values())
+    kind = "Stacking" if use_stacking else "Voting"
+    print(f"  Best single (tuned) CV {scoring} : {best_tuned_score:.4f}")
+    print(f"  {kind} ensemble CV {scoring}      : {ens_scores.mean():.4f} +/- {ens_scores.std():.4f}  [{elapsed:.1f}s]")
+
+    if ens_scores.mean() >= best_tuned_score:
+        return ensemble, f"{kind} Ensemble ({n1} + {n2})", ens_scores.mean()
+    best_name = max(tuned_scores, key=tuned_scores.get)
+    print(f"  -> Ensemble did not improve; using tuned {best_name}")
+    return tuned[best_name], best_name, tuned_scores[best_name]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE A — DISEASE PREDICTOR
 # ══════════════════════════════════════════════════════════════════════════════
 
-def train_disease_pipeline() -> dict:
-    banner("PIPELINE A | Disease Predictor (v3.0)")
+def train_disease_pipeline(use_extra: bool = False) -> dict:
+    banner("PIPELINE A | Disease Predictor (v4.0)")
 
-    # ── Load dataset ──────────────────────────────────────────────────────────
     if not DISEASE_TRAIN_CSV.exists():
         raise FileNotFoundError(
             f"Dataset not found at: {DISEASE_TRAIN_CSV}\n"
-            "Download from Kaggle: kaushil268/disease-prediction-using-machine-learning\n"
-            "Or run with synthetic data (see generate_synthetic_disease())."
+            "Download from Kaggle: kaushil268/disease-prediction-using-machine-learning"
         )
 
     print(f"\n  Loading: {DISEASE_TRAIN_CSV}")
@@ -183,7 +307,6 @@ def train_disease_pipeline() -> dict:
     df.columns = df.columns.str.strip()
     df["prognosis"] = df["prognosis"].str.strip()
 
-    # Optional: merge official test set if present
     if DISEASE_TEST_CSV.exists():
         test_df = pd.read_csv(DISEASE_TEST_CSV)
         test_df = test_df.loc[:, ~test_df.columns.str.contains("^Unnamed")]
@@ -196,28 +319,50 @@ def train_disease_pipeline() -> dict:
     TARGET_COL   = "prognosis"
     SYMPTOM_COLS = [c for c in df.columns if c != TARGET_COL]
 
+    # ── Optional: augment with the richer dhivyeshrk dataset ─────────────────
+    if use_extra and DISEASE_EXTRA_CSV.exists():
+        section("Augmenting with dhivyeshrk/diseases-and-symptoms-dataset")
+        extra = pd.read_csv(DISEASE_EXTRA_CSV)
+        extra.columns = extra.columns.str.strip()
+        extra_target = "diseases" if "diseases" in extra.columns else extra.columns[-1]
+        extra = extra.rename(columns={extra_target: TARGET_COL})
+        common_diseases = set(df[TARGET_COL].unique()) & set(extra[TARGET_COL].unique())
+        extra = extra[extra[TARGET_COL].isin(common_diseases)]
+        for col in SYMPTOM_COLS:
+            if col not in extra.columns:
+                extra[col] = 0
+        extra = extra[SYMPTOM_COLS + [TARGET_COL]]
+        df = pd.concat([df, extra], ignore_index=True)
+        print(f"  Added {len(extra):,} rows for {len(common_diseases)} overlapping diseases -> {len(df):,} total")
+    elif use_extra:
+        print(f"  [WARN] use_extra=True but {DISEASE_EXTRA_CSV} not found — skipping augmentation.")
+
     print(f"  Rows: {len(df):,}  |  Symptom features: {len(SYMPTOM_COLS)}")
 
-    # ── Class distribution ────────────────────────────────────────────────────
     section("Class distribution")
     vc = df[TARGET_COL].value_counts()
     n_classes = vc.shape[0]
     imbalance_ratio = vc.max() / vc.min()
     print(f"  Total classes   : {n_classes}")
     print(f"  Imbalance ratio : {imbalance_ratio:.2f}x  (balanced = 1.0x)")
-    for disease, count in list(vc.items())[:5]:
-        bar = "#" * (count // 5)
-        print(f"    {disease:<45} n={count:4d}  {bar}")
-    print("    [...]")
 
-    # ── Encode target ─────────────────────────────────────────────────────────
+    # ── NEW v4.0: detect statistically indistinguishable disease clusters ────
+    section("Confusable-disease cluster detection (NEW)")
+    clusters = find_confusable_disease_clusters(df, SYMPTOM_COLS, TARGET_COL)
+    if clusters:
+        print("  These disease groups have near-identical symptom signatures")
+        print("  in this dataset — the model cannot reliably separate them,")
+        print("  and predictions among them should be shown as a CLUSTER,")
+        print("  not a single overconfident guess:")
+        for c in clusters:
+            print(f"    * {' / '.join(c)}")
+    else:
+        print("  No near-duplicate symptom signatures detected at current threshold.")
+
     X = df[SYMPTOM_COLS].values.astype(np.float32)
     le = LabelEncoder()
     y  = le.fit_transform(df[TARGET_COL])
 
-    # ── 3-way split: train / calibration / test ───────────────────────────────
-    # Test set: 20% (never seen during training or calibration)
-    # Calibration set: 15% of remaining trainval (≈ 12% of total)
     X_trainval, X_test, y_trainval, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
     )
@@ -225,240 +370,115 @@ def train_disease_pipeline() -> dict:
         X_trainval, y_trainval, test_size=0.15, random_state=42, stratify=y_trainval
     )
     print(f"\n  Train  : {X_train.shape}")
-    print(f"  Cal    : {X_cal.shape}   (held-out for Platt calibration)")
-    print(f"  Test   : {X_test.shape}   (never seen during training)")
+    print(f"  Cal    : {X_cal.shape}")
+    print(f"  Test   : {X_test.shape}")
 
-    # ── Decide class_weight based on actual imbalance ─────────────────────────
-    class_counts     = np.bincount(y_train)
+    class_counts = np.bincount(y_train)
     actual_imbalance = class_counts.max() / class_counts.min()
     cw = "balanced" if actual_imbalance > 3.0 else None
-    print(f"\n  Train imbalance: {actual_imbalance:.2f}x  -> class_weight={'balanced' if cw else 'None (balanced dataset)'}")
-
-    # ── Step 1: Candidate comparison (5-fold CV, no scaler for trees) ─────────
-    section("Step 1 — Candidate model comparison (5-fold stratified CV)")
 
     candidates = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=300, max_depth=None, min_samples_leaf=1,
-            n_jobs=-1, class_weight=cw, random_state=42),
+            n_estimators=300, n_jobs=1, class_weight=cw, random_state=42),
         "Extra Trees": ExtraTreesClassifier(
-            n_estimators=300, max_depth=None, min_samples_leaf=1,
-            n_jobs=-1, class_weight=cw, random_state=42),
+            n_estimators=300, n_jobs=1, class_weight=cw, random_state=42),
         "Gradient Boosting": GradientBoostingClassifier(
             n_estimators=200, learning_rate=0.1, max_depth=3,
-            subsample=0.8, n_iter_no_change=20,
-            # Note: do NOT use validation_fraction inside CV — it carves into
-            # already-small folds and destabilises score estimates.
-            random_state=42),
+            subsample=0.8, n_iter_no_change=20, random_state=42),
+    }
+    param_grids = {
+        "Random Forest": (
+            RandomForestClassifier(n_jobs=1, class_weight=cw, random_state=42),
+            {"n_estimators": [200, 400, 600], "max_depth": [None, 20, 40],
+             "min_samples_leaf": [1, 2, 4], "max_features": ["sqrt", "log2", 0.3]}),
+        "Extra Trees": (
+            ExtraTreesClassifier(n_jobs=1, class_weight=cw, random_state=42),
+            {"n_estimators": [200, 400, 600], "max_depth": [None, 20, 40],
+             "min_samples_leaf": [1, 2, 4], "max_features": ["sqrt", "log2", 0.3]}),
+        "Gradient Boosting": (
+            GradientBoostingClassifier(n_iter_no_change=20, random_state=42),
+            {"n_estimators": [100, 200, 300], "learning_rate": [0.05, 0.1, 0.2],
+             "max_depth": [3, 4, 5], "subsample": [0.7, 0.8, 1.0]}),
     }
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    cv_results: dict[str, float] = {}
+    final_clf, final_name, final_cv = train_tuned_ensemble(
+        X_train, y_train, candidates, param_grids, scoring="f1_weighted", cv=cv,
+    )
 
-    for name, clf in candidates.items():
-        t0     = time.perf_counter()
-        scores = cross_val_score(clf, X_train, y_train,
-                                 cv=cv, scoring="f1_weighted", n_jobs=-1)
-        elapsed = time.perf_counter() - t0
-        cv_results[name] = scores.mean()
-        print(f"    {name:<22}  CV F1 = {scores.mean():.4f} +/- {scores.std():.4f}  [{elapsed:.1f}s]")
-
-    # ── Step 2: Tune top-2 candidates with RandomizedSearchCV ────────────────
-    section("Step 2 — RandomizedSearchCV on top-2 candidates")
-
-    sorted_cv = sorted(cv_results.items(), key=lambda x: x[1], reverse=True)
-    top2_names = [n for n, _ in sorted_cv[:2]]
-    print(f"  Tuning: {top2_names}")
-
-    param_grids = {
-        "Random Forest": (
-            RandomForestClassifier(n_jobs=-1, class_weight=cw, random_state=42),
-            {
-                "n_estimators":     [200, 400, 600],
-                "max_depth":        [None, 20, 40],
-                "min_samples_leaf": [1, 2, 4],
-                "max_features":     ["sqrt", "log2", 0.3],
-            },
-        ),
-        "Extra Trees": (
-            ExtraTreesClassifier(n_jobs=-1, class_weight=cw, random_state=42),
-            {
-                "n_estimators":     [200, 400, 600],
-                "max_depth":        [None, 20, 40],
-                "min_samples_leaf": [1, 2, 4],
-                "max_features":     ["sqrt", "log2", 0.3],
-            },
-        ),
-        "Gradient Boosting": (
-            GradientBoostingClassifier(n_iter_no_change=20, random_state=42),
-            {
-                "n_estimators":  [100, 200, 300],
-                "learning_rate": [0.05, 0.1, 0.2],
-                "max_depth":     [3, 4, 5],
-                "subsample":     [0.7, 0.8, 1.0],
-            },
-        ),
-    }
-
-    tuned_clfs: dict[str, object] = {}
-    tuned_scores: dict[str, float] = {}
-
-    for name in top2_names:
-        base_clf, param_grid = param_grids[name]
-        search = RandomizedSearchCV(
-            base_clf, param_grid,
-            n_iter=15, cv=cv,
-            scoring="f1_weighted",
-            n_jobs=-1, random_state=42, verbose=0,
-        )
-        t0 = time.perf_counter()
-        search.fit(X_train, y_train)
-        elapsed = time.perf_counter() - t0
-        tuned_clfs[name]   = search.best_estimator_
-        tuned_scores[name] = search.best_score_
-        print(f"    {name:<22}  Tuned CV F1 = {search.best_score_:.4f}  [{elapsed:.1f}s]")
-        print(f"      Best params: {search.best_params_}")
-
-    # ── Step 3: Soft-voting ensemble of top-2 tuned models ───────────────────
-    section("Step 3 — Soft-voting ensemble (top-2 tuned models)")
-
-    clf1_name, clf2_name = top2_names[0], top2_names[1]
-    clf1 = tuned_clfs[clf1_name]
-    clf2 = tuned_clfs[clf2_name]
-
-    ensemble = _make_ensemble(clf1_name, clf1, clf2_name, clf2)
-
-    t0 = time.perf_counter()
-    ens_scores = cross_val_score(ensemble, X_train, y_train,
-                                 cv=cv, scoring="f1_weighted", n_jobs=-1)
-    elapsed = time.perf_counter() - t0
-
-    best_tuned_score = max(tuned_scores[clf1_name], tuned_scores[clf2_name])
-    print(f"  Best single (tuned) CV F1 : {best_tuned_score:.4f}")
-    print(f"  Ensemble CV F1            : {ens_scores.mean():.4f} +/- {ens_scores.std():.4f}  [{elapsed:.1f}s]")
-
-    # Use ensemble only if it matches or beats best tuned single model
-    if ens_scores.mean() >= best_tuned_score:
-        final_clf  = ensemble
-        final_name = f"Ensemble ({clf1_name} + {clf2_name})"
-        final_cv   = ens_scores.mean()
-        print(f"  -> Using ensemble")
-    else:
-        # Fall back to the best tuned single model
-        best_name  = max(tuned_scores, key=tuned_scores.get)
-        final_clf  = tuned_clfs[best_name]
-        final_name = best_name
-        final_cv   = tuned_scores[best_name]
-        print(f"  -> Ensemble did not improve; using tuned {best_name}")
-
-    # ── Step 4: Fit final model on X_train ───────────────────────────────────
     section("Step 4 — Final fit on training set")
-    t0 = time.perf_counter()
     final_clf.fit(X_train, y_train)
-    train_time = time.perf_counter() - t0
-    print(f"  Training time: {train_time:.2f}s")
 
-    # ── Step 5: Platt calibration on held-out calibration set ────────────────
-    # cv="prefit" tells sklearn the base estimator is already fit — no refitting.
-    # This is correct in sklearn 1.4+ (cv="prefit" was NOT removed).
     section("Step 5 — Platt calibration on held-out calibration set")
-    calibrated = CalibratedClassifierCV(final_clf, method="sigmoid", cv="prefit")
+    if HAS_FROZEN_ESTIMATOR:
+        calibrated = CalibratedClassifierCV(FrozenEstimator(final_clf), method="sigmoid")
+    else:
+        calibrated = CalibratedClassifierCV(final_clf, method="sigmoid", cv="prefit")
     calibrated.fit(X_cal, y_cal)
-    print(f"  Calibrated on {X_cal.shape[0]} held-out samples (cv='prefit' — base model unchanged)")
 
-    # ── Step 6: Evaluate on untouched test set ───────────────────────────────
     section("Step 6 — Test set evaluation")
-    raw_metrics = evaluate_classifier(
-        f"{final_name} (raw)",
-        final_clf, X_test, y_test,
-        classes=le.classes_
-    )
-    cal_metrics = evaluate_classifier(
-        f"{final_name} (calibrated)",
-        calibrated, X_test, y_test,
-        classes=le.classes_
-    )
+    raw_metrics = evaluate_classifier(f"{final_name} (raw)", final_clf, X_test, y_test, classes=le.classes_)
+    cal_metrics = evaluate_classifier(f"{final_name} (calibrated)", calibrated, X_test, y_test, classes=le.classes_)
 
-    # ── Step 7: Feature importances ──────────────────────────────────────────
     section("Step 7 — Top-15 most informative symptoms")
     fi = _get_feature_importances(final_clf, SYMPTOM_COLS)
     if fi is not None:
         for sym, imp in fi.nlargest(15).items():
-            bar = "#" * int(imp * 300)
-            print(f"    {sym:<40} {imp:.4f}  {bar}")
-    else:
-        print("  (feature importances not available for this model type)")
+            print(f"    {sym:<40} {imp:.4f}  {'#' * int(imp * 300)}")
 
-    # ── Step 8: Demo — top-3 prediction ──────────────────────────────────────
-    section("Step 8 — Demo: top-3 prediction on one test sample")
-    demo_x     = X_test[0:1]
-    probs      = calibrated.predict_proba(demo_x)[0]
-    top3_idx   = np.argsort(probs)[::-1][:3]
+    section("Step 8 — Demo: top-3 prediction with cluster-aware reporting")
+    demo_x = X_test[0:1]
+    probs = calibrated.predict_proba(demo_x)[0]
+    top3_idx = np.argsort(probs)[::-1][:3]
     true_label = le.inverse_transform([y_test[0]])[0]
     print(f"  True label: {true_label}")
     for rank, idx in enumerate(top3_idx, 1):
-        match = "✓" if le.classes_[idx] == true_label else " "
-        print(f"    #{rank} {match} {le.classes_[idx]:<45}  {probs[idx]*100:.1f}%")
+        disease = le.classes_[idx]
+        match = "v" if disease == true_label else " "
+        cluster_note = ""
+        for c in clusters:
+            if disease in c:
+                cluster_note = f"   [clinically indistinguishable from: {', '.join(x for x in c if x != disease)}]"
+        print(f"    #{rank} {match} {disease:<40}  {probs[idx]*100:5.1f}%{cluster_note}")
 
-    # ── Save artifacts ────────────────────────────────────────────────────────
     section("Saving artifacts")
     artifacts = {
-        "pipeline":      calibrated,
+        "pipeline": calibrated,
         "label_encoder": le,
         "feature_names": SYMPTOM_COLS,
-        "classes":       le.classes_.tolist(),
-        "model_name":    final_name,
-        "metrics": {
-            **cal_metrics,
-            "cv_f1":        round(final_cv, 4),
-            "raw_accuracy": raw_metrics["accuracy"],
-            "raw_f1":       raw_metrics["f1_weighted"],
-        },
+        "classes": le.classes_.tolist(),
+        "model_name": final_name,
+        "confusable_clusters": clusters,
+        "metrics": {**cal_metrics, "cv_f1": round(final_cv, 4),
+                    "raw_accuracy": raw_metrics["accuracy"], "raw_f1": raw_metrics["f1_weighted"]},
     }
     out = MODELS_DIR / "disease_pipeline.joblib"
     joblib.dump(artifacts, out, compress=3)
     print(f"  Saved -> {out}")
-
     return artifacts["metrics"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PIPELINE B — MENTAL HEALTH / DEPRESSION SCREENER
+# PIPELINE B1 — STUDENT DEPRESSION SCREENER
 # ══════════════════════════════════════════════════════════════════════════════
 
-def train_mental_health_pipeline() -> dict:
-    banner("PIPELINE B | Mental Health / Depression Screener (v3.0)")
+def train_student_depression_pipeline() -> dict:
+    banner("PIPELINE B1 | Student Depression Screener (v4.0)")
 
-    if not MENTAL_CSV.exists():
+    if not MENTAL_STUDENT_CSV.exists():
         raise FileNotFoundError(
-            f"Dataset not found at: {MENTAL_CSV}\n"
-            "Download from Kaggle: adilshamim8/student-depression-dataset\n"
-            "Or run with synthetic data (see generate_synthetic_mental())."
+            f"Dataset not found at: {MENTAL_STUDENT_CSV}\n"
+            "Download from Kaggle: adilshamim8/student-depression-dataset"
         )
 
-    print(f"\n  Loading: {MENTAL_CSV}")
-    df = pd.read_csv(MENTAL_CSV)
+    print(f"\n  Loading: {MENTAL_STUDENT_CSV}")
+    df = pd.read_csv(MENTAL_STUDENT_CSV)
     df.columns = df.columns.str.strip()
 
-    print(f"  Rows: {len(df):,}  |  Columns: {list(df.columns)}")
-
-    # ── Target ────────────────────────────────────────────────────────────────
     TARGET_COL = "Depression"
-    if TARGET_COL not in df.columns:
-        for alt in ["depression", "Depression_Status", "label"]:
-            if alt in df.columns:
-                df.rename(columns={alt: TARGET_COL}, inplace=True)
-                break
-
-    print(f"\n  Target distribution:")
-    vc = df[TARGET_COL].value_counts()
-    for label, count in vc.items():
-        pct   = count / len(df) * 100
-        lname = "Depression" if label == 1 else "No Depression"
-        print(f"    {lname:<18} n={count:5,}  ({pct:.1f}%)")
-
-    # ── Feature engineering ───────────────────────────────────────────────────
-    section("Feature engineering")
+    for alt in ["depression", "Depression_Status", "label"]:
+        if TARGET_COL not in df.columns and alt in df.columns:
+            df.rename(columns={alt: TARGET_COL}, inplace=True)
 
     DROP_COLS = ["id", "City", "Degree", "Profession"]
     df = df.drop(columns=[c for c in DROP_COLS if c in df.columns])
@@ -474,24 +494,16 @@ def train_mental_health_pipeline() -> dict:
         df["Dietary Habits"] = df["Dietary Habits"].map(diet_map)
         df["Dietary Habits"] = df["Dietary Habits"].fillna(df["Dietary Habits"].median())
 
-    binary_cols = [
-        "Have you ever had suicidal thoughts ?",
-        "Family History of Mental Illness",
-        "Gender",
-    ]
+    binary_cols = ["Have you ever had suicidal thoughts ?", "Family History of Mental Illness", "Gender"]
     for col in binary_cols:
         if col in df.columns:
-            unique_vals = df[col].dropna().unique()
-            vals_lower  = {str(v).strip().lower() for v in unique_vals}
+            vals_lower = {str(v).strip().lower() for v in df[col].dropna().unique()}
             if vals_lower <= {"yes", "no"}:
                 df[col] = df[col].map({"Yes": 1, "No": 0, "yes": 1, "no": 0}).fillna(0)
             elif vals_lower <= {"male", "female"}:
                 df[col] = df[col].map({"Male": 1, "Female": 0, "male": 1, "female": 0}).fillna(0)
 
     FEATURE_COLS = [c for c in df.columns if c != TARGET_COL]
-    print(f"  Features after engineering ({len(FEATURE_COLS)}): {FEATURE_COLS}")
-
-    # Fill remaining NaNs with column median
     for col in FEATURE_COLS:
         if df[col].isna().any():
             df[col] = df[col].fillna(df[col].median())
@@ -499,373 +511,191 @@ def train_mental_health_pipeline() -> dict:
     X = df[FEATURE_COLS].values.astype(np.float32)
     y = df[TARGET_COL].values.astype(np.int32)
 
-    # ── 3-way split ───────────────────────────────────────────────────────────
+    metrics, calibrated, RISK_BANDS = _train_binary_screener(
+        X, y, FEATURE_COLS, population_label="student",
+        suicidal_col_idx=FEATURE_COLS.index("Have you ever had suicidal thoughts ?")
+            if "Have you ever had suicidal thoughts ?" in FEATURE_COLS else None,
+    )
+
+    artifacts = {
+        "pipeline": calibrated, "feature_names": FEATURE_COLS,
+        "population": "student", "risk_bands": RISK_BANDS,
+        "classes": ["No Depression", "Depression"],
+        "feature_types": {
+            "Sleep Duration": {"type": "ordinal", "options": SLEEP_ORDER},
+            "Dietary Habits": {"type": "ordinal", "options": ["Unhealthy", "Moderate", "Healthy"]},
+            "Gender": {"type": "binary", "options": ["Female", "Male"]},
+            "Have you ever had suicidal thoughts ?": {"type": "binary", "options": ["No", "Yes"]},
+            "Family History of Mental Illness": {"type": "binary", "options": ["No", "Yes"]},
+        },
+        "metrics": metrics,
+    }
+    out = MODELS_DIR / "depression_student_pipeline.joblib"
+    joblib.dump(artifacts, out, compress=3)
+    print(f"  Saved -> {out}")
+    return metrics
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PIPELINE B2 — WORKING PROFESSIONAL DEPRESSION/BURNOUT SCREENER  (NEW)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def train_professional_depression_pipeline() -> dict:
+    banner("PIPELINE B2 | Working Professional Depression/Burnout Screener (v4.0, NEW)")
+
+    if not MENTAL_PROFESSIONAL_CSV.exists():
+        raise FileNotFoundError(
+            f"Dataset not found at: {MENTAL_PROFESSIONAL_CSV}\n"
+            "Download from Kaggle: osmi/mental-health-in-tech-survey"
+        )
+
+    print(f"\n  Loading: {MENTAL_PROFESSIONAL_CSV}")
+    df = pd.read_csv(MENTAL_PROFESSIONAL_CSV)
+    df.columns = df.columns.str.strip()
+
+    TARGET_COL = "treatment"
+    if TARGET_COL not in df.columns:
+        raise KeyError(f"Expected target column '{TARGET_COL}' not found in {MENTAL_PROFESSIONAL_CSV}")
+
+    DROP_COLS = ["Timestamp", "state", "comments", "Country"]
+    df = df.drop(columns=[c for c in DROP_COLS if c in df.columns])
+
+    if "Age" in df.columns:
+        df["Age"] = pd.to_numeric(df["Age"], errors="coerce")
+        df.loc[(df["Age"] < 15) | (df["Age"] > 90), "Age"] = np.nan
+        df["Age"] = df["Age"].fillna(df["Age"].median())
+
+    if "Gender" in df.columns:
+        def norm_gender(g):
+            g = str(g).strip().lower()
+            if g in {"m", "male", "man", "cis male", "cis man"}:
+                return "Male"
+            if g in {"f", "female", "woman", "cis female", "cis woman"}:
+                return "Female"
+            return "Other"
+        df["Gender"] = df["Gender"].apply(norm_gender)
+
+    df[TARGET_COL] = df[TARGET_COL].astype(str).str.strip().str.lower().map({"yes": 1, "no": 0})
+    df = df.dropna(subset=[TARGET_COL])
+    df[TARGET_COL] = df[TARGET_COL].astype(int)
+
+    if "work_interfere" in df.columns:
+        df["work_interfere"] = df["work_interfere"].fillna("Don't know")
+
+    FEATURE_COLS = [c for c in df.columns if c != TARGET_COL]
+    num_cols = list(df[FEATURE_COLS].select_dtypes(include=[np.number]).columns)
+    cat_cols = list(df[FEATURE_COLS].select_dtypes(exclude=[np.number]).columns)
+
+    for c in num_cols:
+        df[c] = df[c].fillna(df[c].median())
+    for c in cat_cols:
+        df[c] = df[c].fillna("Unknown").astype(str)
+
+    print(f"  Rows: {len(df):,}  |  Features: {len(FEATURE_COLS)}  ({len(num_cols)} numeric, {len(cat_cols)} categorical)")
+
+    encoder = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+    df[cat_cols] = encoder.fit_transform(df[cat_cols])
+
+    X = df[FEATURE_COLS].values.astype(np.float32)
+    y = df[TARGET_COL].values.astype(np.int32)
+
+    metrics, calibrated, RISK_BANDS = _train_binary_screener(
+        X, y, FEATURE_COLS, population_label="working professional",
+        suicidal_col_idx=None,
+    )
+
+    artifacts = {
+        "pipeline": calibrated, "feature_names": FEATURE_COLS,
+        "population": "working_professional", "risk_bands": RISK_BANDS,
+        "classes": ["Low Risk", "Elevated Risk"],
+        "categorical_encoder": encoder, "categorical_columns": cat_cols,
+        "metrics": metrics,
+    }
+    out = MODELS_DIR / "depression_professional_pipeline.joblib"
+    joblib.dump(artifacts, out, compress=3)
+    print(f"  Saved -> {out}")
+    return metrics
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SHARED binary-screener trainer (used by both B1 and B2)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _train_binary_screener(X, y, feature_cols, population_label, suicidal_col_idx=None):
     X_trainval, X_test, y_trainval, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
     )
     X_train, X_cal, y_train, y_cal = train_test_split(
         X_trainval, y_trainval, test_size=0.15, random_state=42, stratify=y_trainval
     )
-    print(f"\n  Train  : {X_train.shape}")
-    print(f"  Cal    : {X_cal.shape}   (held-out for calibration)")
-    print(f"  Test   : {X_test.shape}   (never seen during training)")
+    print(f"\n  [{population_label}] Train: {X_train.shape}  Cal: {X_cal.shape}  Test: {X_test.shape}")
 
-    # ── Class weight ──────────────────────────────────────────────────────────
-    n_pos = y_train.sum()
-    n_neg = len(y_train) - n_pos
-    scale = n_neg / max(n_pos, 1)
-    actual_imbalance = max(n_pos, n_neg) / max(min(n_pos, n_neg), 1)
-    cw_dict = {0: 1.0, 1: float(scale)} if actual_imbalance > 1.5 else None
-    cw_str  = "balanced" if actual_imbalance > 1.5 else None
-    print(f"\n  Class imbalance: pos={n_pos:,} neg={n_neg:,} ({actual_imbalance:.2f}x)")
-    print(f"  class_weight: {cw_dict if cw_dict else 'None (balanced)'}")
+    n_pos, n_neg = y_train.sum(), len(y_train) - y_train.sum()
+    imbalance = max(n_pos, n_neg) / max(min(n_pos, n_neg), 1)
+    cw_dict = {0: 1.0, 1: float(n_neg / max(n_pos, 1))} if imbalance > 1.5 else None
+    print(f"  Imbalance: {imbalance:.2f}x  -> class_weight={cw_dict}")
 
-    # ── Step 1: Candidate comparison (5-fold CV) ──────────────────────────────
-    section("Step 1 — Candidate model comparison (5-fold stratified CV, ROC-AUC)")
-
-    # LR needs a scaler — wrap only LR in a pipeline
     candidates = {
-        "Gradient Boosting": Pipeline([
-            ("clf", GradientBoostingClassifier(
-                n_estimators=200, learning_rate=0.05, max_depth=3,
-                subsample=0.8, min_samples_leaf=20,
-                n_iter_no_change=20, random_state=42))
-        ]),
-        "Random Forest": Pipeline([
-            ("clf", RandomForestClassifier(
-                n_estimators=300, max_depth=None, min_samples_leaf=5,
-                n_jobs=-1, class_weight=cw_dict, random_state=42))
-        ]),
+        "Gradient Boosting": Pipeline([("clf", GradientBoostingClassifier(
+            n_estimators=200, learning_rate=0.05, max_depth=3, subsample=0.8,
+            min_samples_leaf=20, n_iter_no_change=20, random_state=42))]),
+        "Random Forest": Pipeline([("clf", RandomForestClassifier(
+            n_estimators=300, min_samples_leaf=5, n_jobs=1, class_weight=cw_dict, random_state=42))]),
         "Logistic Regression": Pipeline([
             ("scaler", StandardScaler()),
-            ("clf",    LogisticRegression(
-                C=1.0, max_iter=1000, class_weight="balanced",
-                solver="lbfgs", random_state=42))
+            ("clf", LogisticRegression(C=1.0, max_iter=1000, class_weight="balanced", random_state=42)),
         ]),
+    }
+    param_grids = {
+        "Gradient Boosting": (
+            GradientBoostingClassifier(n_iter_no_change=15, random_state=42),
+            {"n_estimators": [100, 200, 300], "learning_rate": [0.03, 0.05, 0.1, 0.2],
+             "max_depth": [3, 4, 5], "subsample": [0.7, 0.8, 1.0], "min_samples_leaf": [10, 20, 30]}),
+        "Random Forest": (
+            RandomForestClassifier(n_jobs=1, class_weight=cw_dict, random_state=42),
+            {"n_estimators": [200, 400, 600], "max_depth": [None, 10, 20],
+             "min_samples_leaf": [2, 5, 10], "max_features": ["sqrt", "log2"]}),
+        "Logistic Regression": (
+            Pipeline([("scaler", StandardScaler()),
+                     ("clf", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42))]),
+            {"clf__C": [0.01, 0.1, 0.5, 1.0, 5.0, 10.0]}),
     }
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    cv_results: dict[str, float] = {}
-
-    for name, pipe in candidates.items():
-        t0     = time.perf_counter()
-        scores = cross_val_score(pipe, X_train, y_train,
-                                 cv=cv, scoring="roc_auc", n_jobs=-1)
-        elapsed = time.perf_counter() - t0
-        cv_results[name] = scores.mean()
-        print(f"    {name:<25}  CV ROC-AUC = {scores.mean():.4f} +/- {scores.std():.4f}  [{elapsed:.1f}s]")
-
-    # ── Step 2: Tune top-2 candidates ─────────────────────────────────────────
-    section("Step 2 — RandomizedSearchCV on top-2 candidates")
-
-    sorted_cv  = sorted(cv_results.items(), key=lambda x: x[1], reverse=True)
-    top2_names = [n for n, _ in sorted_cv[:2]]
-    print(f"  Tuning: {top2_names}")
-
-    mh_param_grids = {
-        "Gradient Boosting": (
-            GradientBoostingClassifier(n_iter_no_change=15, random_state=42),
-            {
-                "n_estimators":    [100, 200, 300],
-                "learning_rate":   [0.03, 0.05, 0.1, 0.2],
-                "max_depth":       [3, 4, 5],
-                "subsample":       [0.7, 0.8, 1.0],
-                "min_samples_leaf":[10, 20, 30],
-            },
-        ),
-        "Random Forest": (
-            RandomForestClassifier(n_jobs=-1, class_weight=cw_dict, random_state=42),
-            {
-                "n_estimators":     [200, 400, 600],
-                "max_depth":        [None, 10, 20],
-                "min_samples_leaf": [2, 5, 10],
-                "max_features":     ["sqrt", "log2"],
-            },
-        ),
-        "Logistic Regression": (
-            Pipeline([
-                ("scaler", StandardScaler()),
-                ("clf",    LogisticRegression(max_iter=2000, class_weight="balanced",
-                                              solver="lbfgs", random_state=42))
-            ]),
-            {"clf__C": [0.01, 0.1, 0.5, 1.0, 5.0, 10.0]},
-        ),
-    }
-
-    tuned_pipes: dict[str, object] = {}
-    tuned_scores: dict[str, float] = {}
-
-    for name in top2_names:
-        base_est, param_grid = mh_param_grids[name]
-        search = RandomizedSearchCV(
-            base_est, param_grid,
-            n_iter=12, cv=cv,
-            scoring="roc_auc",
-            n_jobs=-1, random_state=42, verbose=0,
-        )
-        t0 = time.perf_counter()
-        search.fit(X_train, y_train)
-        elapsed = time.perf_counter() - t0
-        tuned_pipes[name]   = search.best_estimator_
-        tuned_scores[name]  = search.best_score_
-        print(f"    {name:<25}  Tuned CV AUC = {search.best_score_:.4f}  [{elapsed:.1f}s]")
-        print(f"      Best params: {search.best_params_}")
-
-    # ── Step 3: Soft-voting ensemble ──────────────────────────────────────────
-    section("Step 3 — Soft-voting ensemble (top-2 tuned models)")
-
-    clf1_name, clf2_name = top2_names[0], top2_names[1]
-    clf1 = tuned_pipes[clf1_name]
-    clf2 = tuned_pipes[clf2_name]
-
-    ensemble = _make_ensemble(clf1_name, clf1, clf2_name, clf2)
-
-    t0 = time.perf_counter()
-    ens_scores = cross_val_score(ensemble, X_train, y_train,
-                                 cv=cv, scoring="roc_auc", n_jobs=-1)
-    elapsed = time.perf_counter() - t0
-
-    best_tuned_score = max(tuned_scores[clf1_name], tuned_scores[clf2_name])
-    print(f"  Best single (tuned) CV AUC : {best_tuned_score:.4f}")
-    print(f"  Ensemble CV AUC            : {ens_scores.mean():.4f} +/- {ens_scores.std():.4f}  [{elapsed:.1f}s]")
-
-    if ens_scores.mean() >= best_tuned_score:
-        final_clf  = ensemble
-        final_name = f"Ensemble ({clf1_name} + {clf2_name})"
-        final_cv   = ens_scores.mean()
-        print(f"  -> Using ensemble")
-    else:
-        best_name  = max(tuned_scores, key=tuned_scores.get)
-        final_clf  = tuned_pipes[best_name]
-        final_name = best_name
-        final_cv   = tuned_scores[best_name]
-        print(f"  -> Ensemble did not improve; using tuned {best_name}")
-
-    # ── Step 4: Fit final model ───────────────────────────────────────────────
-    section("Step 4 — Final fit on training set")
-    t0 = time.perf_counter()
-    final_clf.fit(X_train, y_train)
-    train_time = time.perf_counter() - t0
-    print(f"  Training time: {train_time:.2f}s")
-
-    # ── Step 5: Probability calibration ──────────────────────────────────────
-    section("Step 5 — Platt calibration on held-out calibration set")
-    calibrated = CalibratedClassifierCV(final_clf, method="sigmoid", cv="prefit")
-    calibrated.fit(X_cal, y_cal)
-    print(f"  Calibrated on {X_cal.shape[0]} samples (cv='prefit')")
-
-    # ── Step 6: Evaluate ──────────────────────────────────────────────────────
-    section("Step 6 — Test set evaluation")
-    metrics = evaluate_classifier(
-        f"{final_name} (calibrated)",
-        calibrated, X_test, y_test, binary=True
+    final_clf, final_name, final_cv = train_tuned_ensemble(
+        X_train, y_train, candidates, param_grids, scoring="roc_auc", cv=cv,
+        use_stacking=True,
     )
+
+    final_clf.fit(X_train, y_train)
+    if HAS_FROZEN_ESTIMATOR:
+        calibrated = CalibratedClassifierCV(FrozenEstimator(final_clf), method="sigmoid")
+    else:
+        calibrated = CalibratedClassifierCV(final_clf, method="sigmoid", cv="prefit")
+    calibrated.fit(X_cal, y_cal)
+
+    metrics = evaluate_classifier(f"{final_name} (calibrated)", calibrated, X_test, y_test, binary=True)
     metrics["cv_roc_auc"] = round(final_cv, 4)
 
-    # ── Step 7: Feature importances ───────────────────────────────────────────
-    section("Step 7 — Feature importances")
-    fi = _get_feature_importances(final_clf, FEATURE_COLS)
+    fi = _get_feature_importances(final_clf, feature_cols)
     if fi is not None:
+        section(f"Feature importances [{population_label}]")
         for feat, imp in fi.sort_values(ascending=False).items():
-            bar = "#" * int(imp * 60)
-            print(f"    {feat:<45} {imp:.4f}  {bar}")
-    else:
-        print("  (importances not available for this model)")
+            print(f"    {feat:<45} {imp:.4f}  {'#' * int(imp * 60)}")
 
-    # ── Risk level thresholds ─────────────────────────────────────────────────
+    y_prob_test = calibrated.predict_proba(X_test)[:, 1]
+    tuned_thr, _ = tune_threshold(y_test, y_prob_test)
+    low_hi  = max(tuned_thr - 0.20, 0.05)
+    high_lo = min(tuned_thr + 0.15, 0.95)
     RISK_BANDS = {
-        "Low":      (0.00, 0.35, "#22c55e", "No significant depression risk detected."),
-        "Moderate": (0.35, 0.65, "#f59e0b", "Some indicators present. Consider talking to someone."),
-        "High":     (0.65, 1.01, "#ef4444", "Strong indicators. Please consult a professional."),
+        "Low":      (0.00, low_hi, "#22c55e", "No significant risk detected."),
+        "Moderate": (low_hi, high_lo, "#f59e0b", "Some indicators present. Consider talking to someone."),
+        "High":     (high_lo, 1.01, "#ef4444", "Strong indicators. Please consult a professional."),
     }
+    print(f"  Risk bands tuned around F1-optimal threshold {tuned_thr:.3f}: "
+          f"Low <{low_hi:.2f}  Moderate <{high_lo:.2f}  High >={high_lo:.2f}")
 
-    # ── Demo prediction ───────────────────────────────────────────────────────
-    section("Demo — high-risk profile prediction")
-    DEMO_HIGH_RISK = {
-        "Gender": 0, "Age": 21, "Academic Pressure": 5, "Work Pressure": 4,
-        "CGPA": 5.0, "Study Satisfaction": 1, "Job Satisfaction": 1,
-        "Sleep Duration": 0, "Dietary Habits": 0,
-        "Have you ever had suicidal thoughts ?": 1,
-        "Work/Study Hours": 12, "Financial Stress": 5,
-        "Family History of Mental Illness": 1,
-    }
-    demo_vec = np.array(
-        [[DEMO_HIGH_RISK.get(f, 0) for f in FEATURE_COLS]], dtype=np.float32
-    )
-    prob_depression = calibrated.predict_proba(demo_vec)[0][1]
-    risk_label = next(
-        k for k, (lo, hi, *_) in RISK_BANDS.items()
-        if lo <= prob_depression < hi
-    )
-    _, _, color, advice = RISK_BANDS[risk_label]
-    print(f"  Depression probability : {prob_depression*100:.1f}%")
-    print(f"  Risk level             : {risk_label}")
-    print(f"  Advice                 : {advice}")
-
-    # ── Save artifacts ────────────────────────────────────────────────────────
-    section("Saving artifacts")
-    artifacts = {
-        "pipeline":      calibrated,
-        "feature_names": FEATURE_COLS,
-        "model_name":    final_name,
-        "risk_bands":    RISK_BANDS,
-        "classes":       ["No Depression", "Depression"],
-        "feature_types": {
-            "Sleep Duration":    {"type": "ordinal", "options": SLEEP_ORDER},
-            "Dietary Habits":    {"type": "ordinal",
-                                  "options": ["Unhealthy", "Moderate", "Healthy"]},
-            "Gender":            {"type": "binary", "options": ["Female", "Male"]},
-            "Have you ever had suicidal thoughts ?":
-                                 {"type": "binary", "options": ["No", "Yes"]},
-            "Family History of Mental Illness":
-                                 {"type": "binary", "options": ["No", "Yes"]},
-        },
-        "metrics": metrics,
-    }
-    out = MODELS_DIR / "mental_health_pipeline.joblib"
-    joblib.dump(artifacts, out, compress=3)
-    print(f"  Saved -> {out}")
-    return artifacts["metrics"]
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# FALLBACK — synthetic data generators (offline testing / CI)
-# ══════════════════════════════════════════════════════════════════════════════
-
-def generate_synthetic_disease(n: int = 4920) -> pd.DataFrame:
-    """Replicates the Kaggle disease dataset structure for offline testing."""
-    np.random.seed(42)
-    SYMPTOMS = [
-        "itching","skin_rash","nodal_skin_eruptions","continuous_sneezing",
-        "shivering","chills","joint_pain","stomach_pain","acidity","ulcers_on_tongue",
-        "muscle_wasting","vomiting","burning_micturition","spotting_urination",
-        "fatigue","weight_gain","anxiety","cold_hands_and_feets","mood_swings",
-        "weight_loss","restlessness","lethargy","patches_in_throat",
-        "irregular_sugar_level","cough","high_fever","sunken_eyes","breathlessness",
-        "sweating","dehydration","indigestion","headache","yellowish_skin",
-        "dark_urine","nausea","loss_of_appetite","pain_behind_the_eyes",
-        "back_pain","constipation","abdominal_pain","diarrhoea","mild_fever",
-        "yellow_urine","yellowing_of_eyes","acute_liver_failure","fluid_overload",
-        "swelling_of_stomach","swelled_lymph_nodes","malaise","blurred_and_distorted_vision",
-        "phlegm","throat_irritation","redness_of_eyes","sinus_pressure","runny_nose",
-        "congestion","chest_pain","weakness_in_limbs","fast_heart_rate",
-        "pain_during_bowel_movements","pain_in_anal_region","bloody_stool",
-        "irritation_in_anus","neck_pain","dizziness","cramps","bruising",
-        "obesity","swollen_legs","swollen_blood_vessels","puffy_face_and_eyes",
-        "enlarged_thyroid","brittle_nails","swollen_extremeties","excessive_hunger",
-        "extra_marital_contacts","drying_and_tingling_lips","slurred_speech",
-        "knee_pain","hip_joint_pain","muscle_weakness","stiff_neck","swelling_joints",
-        "movement_stiffness","spinning_movements","loss_of_balance","unsteadiness",
-        "weakness_of_one_body_side","loss_of_smell","bladder_discomfort",
-        "foul_smell_of_urine","continuous_feel_of_urine","passage_of_gases",
-        "internal_itching","toxic_look_(typhos)","depression","irritability",
-        "muscle_pain","altered_sensorium","red_spots_over_body","belly_pain",
-        "abnormal_menstruation","dischromic_patches","watering_from_eyes",
-        "increased_appetite","polyuria","family_history","mucoid_sputum",
-        "rusty_sputum","lack_of_concentration","visual_disturbances",
-        "receiving_blood_transfusion","receiving_unsterile_injections","coma",
-        "stomach_bleeding","distention_of_abdomen","history_of_alcohol_consumption",
-        "fluid_overload_1","blood_in_sputum","prominent_veins_on_calf",
-        "palpitations","painful_walking","pus_filled_pimples","blackheads",
-        "scurring","skin_peeling","silver_like_dusting","small_dents_in_nails",
-        "inflammatory_nails","blister","red_sore_around_nose","yellow_crust_ooze",
-    ][:132]
-    DISEASES = [
-        "Fungal infection","Allergy","GERD","Chronic cholestasis","Drug Reaction",
-        "Peptic ulcer disease","AIDS","Diabetes","Gastroenteritis","Bronchial Asthma",
-        "Hypertension","Migraine","Cervical spondylosis","Paralysis (brain hemorrhage)",
-        "Jaundice","Malaria","Chicken pox","Dengue","Typhoid","hepatitis A",
-        "Hepatitis B","Hepatitis C","Hepatitis D","Hepatitis E","Alcoholic hepatitis",
-        "Tuberculosis","Common Cold","Pneumonia","Dimorphic hemmorhoids(piles)",
-        "Heart attack","Varicose veins","Hypothyroidism","Hyperthyroidism",
-        "Hypoglycemia","Osteoarthristis","Arthritis",
-        "(vertigo) Paroxysmal Positional Vertigo","Acne",
-        "Urinary tract infection","Psoriasis","Impetigo",
-    ]
-    LOGICAL_RULES: dict[str, list[str]] = {
-        "Common Cold":      ["continuous_sneezing","chills","fatigue","cough","mild_fever","runny_nose","congestion"],
-        "Malaria":          ["chills","vomiting","high_fever","sweating","headache","nausea","muscle_pain"],
-        "Dengue":           ["skin_rash","chills","joint_pain","vomiting","fatigue","high_fever","headache","nausea","pain_behind_the_eyes","muscle_pain"],
-        "Typhoid":          ["chills","vomiting","fatigue","high_fever","headache","nausea","constipation","abdominal_pain","toxic_look_(typhos)"],
-        "Diabetes":         ["fatigue","weight_loss","restlessness","lethargy","irregular_sugar_level","blurred_and_distorted_vision","obesity","excessive_hunger","polyuria"],
-        "Hypertension":     ["headache","chest_pain","dizziness","loss_of_balance","lack_of_concentration"],
-        "Migraine":         ["acidity","indigestion","headache","blurred_and_distorted_vision","excessive_hunger","stiff_neck","depression","irritability","visual_disturbances"],
-        "Arthritis":        ["muscle_weakness","stiff_neck","swelling_joints","movement_stiffness","painful_walking"],
-        "Allergy":          ["continuous_sneezing","shivering","chills","watering_from_eyes"],
-        "Fungal infection": ["itching","skin_rash","nodal_skin_eruptions","dischromic_patches"],
-        "Jaundice":         ["itching","vomiting","fatigue","weight_loss","high_fever","yellowish_skin","dark_urine","abdominal_pain"],
-        "Tuberculosis":     ["chills","vomiting","fatigue","weight_loss","cough","high_fever","breathlessness","sweating","loss_of_appetite","phlegm","blood_in_sputum"],
-        "Pneumonia":        ["chills","fatigue","cough","high_fever","breathlessness","sweating","malaise","chest_pain","fast_heart_rate","rusty_sputum"],
-    }
-    for d in DISEASES:
-        if d not in LOGICAL_RULES:
-            LOGICAL_RULES[d] = list(np.random.choice(SYMPTOMS, np.random.randint(4, 9), replace=False))
-
-    rows = []
-    for _ in range(n):
-        disease = np.random.choice(DISEASES)
-        row = {s: int(np.random.random() < 0.05) for s in SYMPTOMS}
-        for s in LOGICAL_RULES[disease]:
-            if np.random.random() < 0.8:
-                row[s] = 1
-        row["prognosis"] = disease
-        rows.append(row)
-    return pd.DataFrame(rows)
-
-
-def generate_synthetic_mental(n: int = 27901) -> pd.DataFrame:
-    """Replicates the Kaggle student depression dataset structure."""
-    np.random.seed(42)
-    SLEEP_MAP = ["Less than 5 hours","5-6 hours","7-8 hours","More than 8 hours"]
-    DIET_MAP  = ["Unhealthy","Moderate","Healthy"]
-    rows = []
-    for _ in range(n):
-        sleep_idx        = np.random.choice([0, 1, 2, 3])
-        diet_idx         = np.random.choice([0, 1, 2])
-        academic_pressure= np.random.randint(0, 6)
-        work_pressure    = np.random.randint(0, 6)
-        cgpa             = round(np.random.uniform(3, 10), 1)
-        study_sat        = np.random.randint(0, 6)
-        job_sat          = np.random.randint(0, 6)
-        financial        = np.random.randint(0, 6)
-        hours            = round(np.random.uniform(0, 16), 1)
-        suicidal         = np.random.random() < 0.15
-        family_hist      = np.random.random() < 0.2
-
-        risk_score = 0.0
-        if sleep_idx <= 1:          risk_score += 2.0
-        if diet_idx == 0:           risk_score += 1.0
-        if academic_pressure >= 4:  risk_score += 2.0
-        if work_pressure >= 4:      risk_score += 2.0
-        if cgpa < 6.0:              risk_score += 1.5
-        if study_sat <= 2:          risk_score += 1.0
-        if job_sat <= 2:            risk_score += 1.0
-        if financial >= 4:          risk_score += 2.0
-        if hours > 10:              risk_score += 1.5
-        if suicidal:                risk_score += 5.0
-        if family_hist:             risk_score += 3.0
-
-        dep = 1 if risk_score >= 8 else 0
-        if np.random.random() < 0.05:   # 5% label noise
-            dep = 1 - dep
-
-        rows.append({
-            "Gender":             np.random.choice(["Male", "Female"]),
-            "Age":                int(np.clip(np.random.normal(21, 3), 17, 30)),
-            "Academic Pressure":  academic_pressure,
-            "Work Pressure":      work_pressure,
-            "CGPA":               cgpa,
-            "Study Satisfaction": study_sat,
-            "Job Satisfaction":   job_sat,
-            "Sleep Duration":     SLEEP_MAP[sleep_idx],
-            "Dietary Habits":     DIET_MAP[diet_idx],
-            "Have you ever had suicidal thoughts ?": "Yes" if suicidal else "No",
-            "Work/Study Hours":   hours,
-            "Financial Stress":   financial,
-            "Family History of Mental Illness": "Yes" if family_hist else "No",
-            "Depression":         dep,
-        })
-    return pd.DataFrame(rows)
+    return metrics, calibrated, RISK_BANDS
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -873,72 +703,46 @@ def generate_synthetic_mental(n: int = 27901) -> pd.DataFrame:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    print("\n" + "=" * 70)
-    print("  HEALTH & WELLNESS SCREENER — UNIFIED ML PIPELINE (v3.0)")
-    print("=" * 70)
+    print("\n" + "=" * 72)
+    print("  HEALTH & WELLNESS SCREENER -- UNIFIED ML PIPELINE (v4.0)")
+    print("=" * 72)
 
-    disease_ok, mental_ok = check_data_files()
-
-    # ── Graceful synthetic fallback ───────────────────────────────────────────
-    if not disease_ok:
-        print(f"\n  [WARN] Disease dataset not found at: {DISEASE_TRAIN_CSV}")
-        print("  -> Generating synthetic data (Kaggle schema)...")
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        generate_synthetic_disease().to_csv(DISEASE_TRAIN_CSV, index=False)
-        print(f"  OK: Synthetic disease_training.csv created.")
-
-    if not mental_ok:
-        print(f"\n  [WARN] Mental health dataset not found at: {MENTAL_CSV}")
-        print("  -> Generating synthetic data (Kaggle schema)...")
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        generate_synthetic_mental().to_csv(MENTAL_CSV, index=False)
-        print(f"  OK: Synthetic mental_health.csv created.")
+    status = check_data_files()
+    missing = [k for k, v in status.items() if not v and k != "disease_extra"]
+    if missing:
+        print(f"\n  [WARN] Missing required files for: {missing}")
+        print("  Required Kaggle datasets:")
+        print("    disease       -> kaushil268/disease-prediction-using-machine-learning")
+        print("    disease_extra -> dhivyeshrk/diseases-and-symptoms-dataset      (optional augmentation)")
+        print("    student       -> adilshamim8/student-depression-dataset")
+        print("    professional  -> osmi/mental-health-in-tech-survey            (NEW)")
+        print("  Place CSVs under data/raw/ with the filenames at the top of this script.")
 
     t_start = time.perf_counter()
+    results = {}
 
-    disease_metrics = train_disease_pipeline()
-    mh_metrics      = train_mental_health_pipeline()
+    if status["disease"]:
+        results["disease_predictor"] = train_disease_pipeline(use_extra=status["disease_extra"])
+    if status["student"]:
+        results["depression_student"] = train_student_depression_pipeline()
+    if status["professional"]:
+        results["depression_professional"] = train_professional_depression_pipeline()
 
     total_time = time.perf_counter() - t_start
 
-    # ── Summary ───────────────────────────────────────────────────────────────
     banner("PIPELINE SUMMARY")
-
     summary = {
-        "version": "3.0.0",
-        "kaggle_data_used": {
-            "disease":       disease_ok,
-            "mental_health": mental_ok,
-        },
-        "disease_predictor": {
-            "dataset": "kaushil268/disease-prediction-using-machine-learning",
-            "model":   "Auto-selected + tuned + soft-voting ensemble (Platt-calibrated, cv=prefit)",
-            "input":   "132 binary symptom flags",
-            "output":  "top-3 disease predictions + calibrated confidence %",
-            "metrics": disease_metrics,
-        },
-        "mental_health_screener": {
-            "dataset": "adilshamim8/student-depression-dataset",
-            "model":   "Auto-selected + tuned + soft-voting ensemble (calibrated)",
-            "input":   "13 lifestyle/academic/demographic features",
-            "output":  "depression probability + risk level (Low/Moderate/High)",
-            "metrics": mh_metrics,
-        },
+        "version": "4.0.0",
+        "datasets_used": status,
+        "results": results,
         "total_training_time_sec": round(total_time, 2),
-        "saved_models": [
-            "models/disease_pipeline.joblib",
-            "models/mental_health_pipeline.joblib",
-        ],
     }
-
-    print(json.dumps(summary, indent=4))
+    print(json.dumps(summary, indent=4, default=str))
     with open(MODELS_DIR / "pipeline_summary.json", "w") as f:
-        json.dump(summary, f, indent=4)
+        json.dump(summary, f, indent=4, default=str)
 
     print(f"\n  Total time : {total_time:.1f}s")
-    print("\n" + "=" * 70)
-    print("  Both pipelines ready.")
-    print("=" * 70 + "\n")
+    print("=" * 72 + "\n")
 
 
 if __name__ == "__main__":
