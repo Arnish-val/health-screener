@@ -4,9 +4,9 @@
 
 const SLIDER_FIELDS = [
   { key: 'Academic_Pressure', label: 'Academic Pressure', min: 0, max: 5 },
-  { key: 'Work_Pressure', label: 'Work Pressure', min: 0, max: 5 },
+  { key: 'Work_Pressure', label: 'Work Pressure (if employed / part-time)', min: 0, max: 5 },
   { key: 'Study_Satisfaction', label: 'Study Satisfaction', min: 0, max: 5 },
-  { key: 'Job_Satisfaction', label: 'Job Satisfaction', min: 0, max: 5 },
+  { key: 'Job_Satisfaction', label: 'Job Satisfaction (if employed / part-time)', min: 0, max: 5 },
   { key: 'Financial_Stress', label: 'Financial Stress', min: 0, max: 5 },
 ];
 
