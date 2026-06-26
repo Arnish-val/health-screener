@@ -69,10 +69,36 @@ def app():
     test_app.state.disease_label_encoder = FakeLabelEncoder(DISEASE_CLASSES)
     test_app.state.disease_features = DISEASE_FEATURES
 
-    # Inject mock mental health artifacts
-    test_app.state.mh_pipeline = FakePipeline(n_classes=2, positive_prob=0.75)
-    test_app.state.mh_features = MH_FEATURES
-    test_app.state.mh_risk_bands = MH_RISK_BANDS
+    # Inject mock student depression artifacts
+    test_app.state.depression_student_pipeline = FakePipeline(n_classes=2, positive_prob=0.75)
+    test_app.state.depression_student_features = MH_FEATURES
+    test_app.state.depression_student_risk_bands = MH_RISK_BANDS
+
+    # Inject mock professional depression artifacts
+    test_app.state.depression_professional_pipeline = FakePipeline(n_classes=2, positive_prob=0.75)
+    test_app.state.depression_professional_features = [
+        "self_employed", "family_history", "work_interfere", "no_employees",
+        "remote_work", "tech_company", "benefits", "care_options",
+        "wellness_program", "seek_help", "anonymity", "leave",
+        "mental_health_consequence", "phys_health_consequence", "coworkers",
+        "supervisor", "mental_health_interview", "phys_health_interview",
+        "mental_vs_physical", "obs_consequence", "Gender", "Age"
+    ]
+    test_app.state.depression_professional_risk_bands = MH_RISK_BANDS
+
+    class FakeEncoder:
+        def transform(self, X):
+            return np.zeros((len(X), len(X[0])))
+
+    test_app.state.depression_professional_categorical_encoder = FakeEncoder()
+    test_app.state.depression_professional_categorical_columns = [
+        "self_employed", "family_history", "work_interfere", "no_employees",
+        "remote_work", "tech_company", "benefits", "care_options",
+        "wellness_program", "seek_help", "anonymity", "leave",
+        "mental_health_consequence", "phys_health_consequence", "coworkers",
+        "supervisor", "mental_health_interview", "phys_health_interview",
+        "mental_vs_physical", "obs_consequence", "Gender"
+    ]
 
     return test_app
 
@@ -88,5 +114,7 @@ def client_no_models():
     """Test client with NO models loaded — simulates startup failure."""
     test_app = create_app()
     test_app.state.disease_pipeline = None
+    test_app.state.depression_student_pipeline = None
+    test_app.state.depression_professional_pipeline = None
     test_app.state.mh_pipeline = None
     return TestClient(test_app)

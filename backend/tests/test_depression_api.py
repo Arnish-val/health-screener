@@ -74,3 +74,43 @@ class TestDepressionEndpoint:
         body = response.json()
         assert body["success"] is False
         assert body["error"]["code"] == "MODEL_NOT_LOADED"
+
+    def test_predict_depression_student_success(self, client):
+        """Student endpoint returns risk level."""
+        response = client.post("/predict/depression/student", json=VALID_DEPRESSION_INPUT)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["risk_level"] in ("Low", "Moderate", "High")
+
+    def test_predict_depression_professional_success(self, client):
+        """Professional endpoint returns risk level."""
+        valid_professional_input = {
+            "Age": 30,
+            "Gender": "Male",
+            "self_employed": "No",
+            "family_history": "Yes",
+            "work_interfere": "Sometimes",
+            "no_employees": "26-100",
+            "remote_work": "Yes",
+            "tech_company": "Yes",
+            "benefits": "Yes",
+            "care_options": "Yes",
+            "wellness_program": "No",
+            "seek_help": "Yes",
+            "anonymity": "Yes",
+            "leave": "Somewhat easy",
+            "mental_health_consequence": "No",
+            "phys_health_consequence": "No",
+            "coworkers": "Some of them",
+            "supervisor": "Yes",
+            "mental_health_interview": "No",
+            "phys_health_interview": "Maybe",
+            "mental_vs_physical": "Yes",
+            "obs_consequence": "No"
+        }
+        response = client.post("/predict/depression/professional", json=valid_professional_input)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["risk_level"] in ("Low", "Moderate", "High")
