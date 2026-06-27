@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Brain, GraduationCap, Briefcase, ArrowRight, ArrowLeft } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { predictDepressionStudent, predictDepressionProfessional } from '../../api/depressionApi';
 import useApi from '../../hooks/useApi';
 import Button from '../ui/Button';
