@@ -6,7 +6,7 @@ from app.api import deps
 from app.models.user import User
 
 class MockUser:
-    def __init__(self, id=1, email="test@example.com"):
+    def __init__(self, id=999999, email="nonexistent_test_user@example.com"):
         self.id = id
         self.email = email
 

@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Local database matching Render production setup
+  db:
+    image: postgres:16-alpine
+    container_name: health-screener-db-local
+    restart: always
+    environment:
+      POSTGRES_USER: health_screener_user
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: health_screener
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # FastAPI Backend Service
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: health-screener-backend
+    restart: always
+    volumes:
+      - ./backend:/app
+      - ./ml_pipeline:/ml_pipeline
+      - ./models:/models
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://health_screener_user:password123@db:5432/health_screener
+      - CORS_ORIGINS=["http://localhost:5173", "http://localhost:3000"]
+      - SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+    depends_on:
+      - db
+
+  # React / Vite Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: health-screener-frontend
+    restart: always
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

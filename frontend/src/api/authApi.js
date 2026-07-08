@@ -21,5 +21,12 @@ export const authApi = {
       password
     });
     return data;
+  },
+
+  googleLogin: async (idToken) => {
+    const data = await client.post('/api/v1/auth/google', {
+      id_token: idToken
+    });
+    return data;
   }
 };

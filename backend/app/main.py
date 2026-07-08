@@ -16,9 +16,19 @@ from app.core.model_loader import lifespan
 from app.core.exceptions import register_exception_handlers
 from app.db.database import engine, Base
 from app.models import user, history
+from sqlalchemy import text
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+# Ensure new columns exist in the users table (lightweight migration for existing databases)
+with engine.connect() as conn:
+    for column_name in ["name", "picture_url"]:
+        try:
+            conn.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} VARCHAR"))
+            conn.commit()
+        except Exception:
+            pass
 
 # ── Logging setup ────────────────────────────────────────────────────────────
 logging.basicConfig(

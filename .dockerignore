@@ -1,0 +1,21 @@
+# Version Control
+.git
+.github
+
+# Backend development & cache files
+backend/.venv
+backend/venv
+backend/__pycache__
+backend/.pytest_cache
+backend/*.db
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.env
+
+# Frontend files (frontend has its own dockerignore, but good to filter out here)
+frontend/node_modules
+frontend/dist
+frontend/.env
+frontend/.env.local
+frontend/.eslintcache

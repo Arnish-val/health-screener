@@ -65,10 +65,30 @@ export default function Navbar({ isDark, toggleTheme }) {
           <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-2" />
 
           {user ? (
-             <div className="flex items-center gap-2">
+             <div className="flex items-center gap-3">
                 <button onClick={() => handleNavigate('/history')} className={linkClass('/history')}>
                    <History className="w-4 h-4 inline-block mr-1" /> History
                 </button>
+                
+                {/* Profile Pill */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 shadow-sm select-none">
+                  {user.pictureUrl ? (
+                    <img 
+                      src={user.pictureUrl} 
+                      alt={user.name || 'User Profile'} 
+                      className="w-7 h-7 rounded-full object-cover border border-slate-300 dark:border-slate-600"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                      {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="max-w-[100px] truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {user.name || user.email.split('@')[0]}
+                  </span>
+                </div>
+
                 <button onClick={handleLogout} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-all">
                    <LogOut className="w-4 h-4 inline-block mr-1" /> Logout
                 </button>
@@ -126,14 +146,37 @@ export default function Navbar({ isDark, toggleTheme }) {
           ))}
           <div className="border-t border-slate-100 dark:border-slate-800 my-2 pt-2">
              {user ? (
-               <>
-                 <button onClick={() => handleNavigate('/history')} className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-medium cursor-pointer text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800`}>
-                   History
-                 </button>
-                 <button onClick={handleLogout} className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-medium cursor-pointer text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20`}>
-                   Logout
-                 </button>
-               </>
+                <>
+                  {/* Mobile Profile Header */}
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800/80 mb-2 bg-slate-50/50 dark:bg-slate-850/50 rounded-xl">
+                    {user.pictureUrl ? (
+                      <img 
+                        src={user.pictureUrl} 
+                        alt={user.name || 'User Profile'} 
+                        className="w-10 h-10 rounded-full object-cover border border-slate-300 dark:border-slate-600"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                        {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-bold text-slate-800 dark:text-white truncate">
+                        {user.name || user.email.split('@')[0]}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {user.email}
+                      </span>
+                    </div>
+                  </div>
+                  <button onClick={() => handleNavigate('/history')} className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-medium cursor-pointer text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800`}>
+                    History
+                  </button>
+                  <button onClick={handleLogout} className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-medium cursor-pointer text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20`}>
+                    Logout
+                  </button>
+                </>
              ) : (
                  <button onClick={() => handleNavigate('/auth')} className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-medium cursor-pointer text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20`}>
                    Login / Sign Up

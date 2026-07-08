@@ -7,6 +7,7 @@ import {
   CheckCircle2, Lock, Users, Award,
 } from 'lucide-react';
 import heroImage from '../assets/hero.png';
+import BorderGlow from './BorderGlow';
 
 void motion;
 
@@ -451,11 +452,43 @@ export default function LandingScreen() {
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { title: 'Disease AI', desc: 'Top 3 condition ranking', icon: Stethoscope, bg: '#F8E37E', path: '/disease' },
-              { title: 'Mental Health', desc: 'Anonymous risk scoring', icon: Brain, bg: '#9AE5C9', path: '/depression' },
-              { title: 'Alzheimer\'s AI', desc: 'fMRI & cognitive screener', icon: Activity, bg: '#F2CBD4', path: '/alzheimers' },
-              { title: 'Saved History', desc: 'Track your screenings', icon: BarChart3, bg: '#9BBEF8', path: '/history' },
-            ].map(({ title, desc, icon: Icon, bg, path }) => {
+              {
+                title: 'Disease AI',
+                desc: 'Top 3 condition ranking',
+                icon: Stethoscope,
+                bg: '#F8E37E',
+                path: '/disease',
+                glowColor: '45 85 50',
+                colors: ['#eab308', '#facc15', '#fef08a']
+              },
+              {
+                title: 'Mental Health',
+                desc: 'Anonymous risk scoring',
+                icon: Brain,
+                bg: '#9AE5C9',
+                path: '/depression',
+                glowColor: '150 70 40',
+                colors: ['#10b981', '#34d399', '#6ee7b7']
+              },
+              {
+                title: 'Alzheimer\'s AI',
+                desc: 'fMRI & cognitive screener',
+                icon: Activity,
+                bg: '#F2CBD4',
+                path: '/alzheimers',
+                glowColor: '340 70 50',
+                colors: ['#ec4899', '#f472b6', '#fbcfe8']
+              },
+              {
+                title: 'Saved History',
+                desc: 'Track your screenings',
+                icon: BarChart3,
+                bg: '#9BBEF8',
+                path: '/history',
+                glowColor: '210 80 50',
+                colors: ['#3b82f6', '#60a5fa', '#93c5fd']
+              },
+            ].map(({ title, desc, icon: Icon, bg, path, glowColor, colors }) => {
               void Icon;
               return (
                 <motion.div
@@ -463,22 +496,36 @@ export default function LandingScreen() {
                   initial={{ opacity: 0, y: 24 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.25 }}
-                  onClick={() => navigate(path)}
-                  className="min-h-[180px] rounded-[1.75rem] p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer select-none"
-                  style={{ backgroundColor: bg }}
+                  className="w-full flex"
                 >
-                  <div className="flex h-full flex-col justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold leading-tight text-slate-950">{title}</h3>
-                      <p className="mt-2 text-sm text-slate-700">{desc}</p>
+                  <BorderGlow
+                    edgeSensitivity={30}
+                    glowColor={glowColor}
+                    backgroundColor={bg}
+                    borderRadius={28}
+                    glowRadius={30}
+                    glowIntensity={0.8}
+                    coneSpread={25}
+                    animated={false}
+                    colors={colors}
+                    className="min-h-[180px] w-full transition-all duration-300 hover:-translate-y-1 cursor-pointer select-none"
+                  >
+                    <div 
+                      onClick={() => navigate(path)}
+                      className="flex h-full flex-col justify-between p-6"
+                    >
+                      <div>
+                        <h3 className="text-xl font-bold leading-tight text-slate-950">{title}</h3>
+                        <p className="mt-2 text-sm text-slate-700">{desc}</p>
+                      </div>
+                      <div className="mt-8 flex items-end justify-between">
+                        <Icon className="h-12 w-12 text-slate-950/35" />
+                        <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-950 text-white">
+                          <ArrowRight className="h-4 w-4" />
+                        </span>
+                      </div>
                     </div>
-                    <div className="mt-8 flex items-end justify-between">
-                      <Icon className="h-12 w-12 text-slate-950/35" />
-                      <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-950 text-white">
-                        <ArrowRight className="h-4 w-4" />
-                      </span>
-                    </div>
-                  </div>
+                  </BorderGlow>
                 </motion.div>
               );
             })}
@@ -530,58 +577,76 @@ export default function LandingScreen() {
                   key={s.title}
                   id={`service-card-${i}`}
                   variants={i === 0 ? fadeLeft : fadeRight}
-                  whileHover={{ y: -8, boxShadow: '0 28px 56px rgba(16,110,190,0.13)' }}
-                  onClick={() => navigate(s.path)}
-                  className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm group cursor-pointer relative overflow-hidden transition-all"
+                  className="w-full"
                 >
-                  {/* Glow orb */}
-                  <div
-                    className="absolute top-0 right-0 -mr-24 -mt-24 w-72 h-72 rounded-full opacity-50 blur-3xl transition-transform duration-700 group-hover:scale-125"
-                    style={{ backgroundColor: s.color + '18' }}
-                  />
-
-                  {/* Badge */}
-                  <span
-                    className="inline-block text-xs font-bold px-3 py-1 rounded-full mb-5"
-                    style={{ backgroundColor: s.badgeColor, color: s.color }}
+                  <BorderGlow
+                    edgeSensitivity={30}
+                    glowColor={s.color === '#106EBE' ? '210 80 50' : '150 70 40'}
+                    backgroundColor="var(--card-bg-theme)"
+                    borderRadius={32}
+                    glowRadius={40}
+                    glowIntensity={0.8}
+                    coneSpread={25}
+                    animated={false}
+                    colors={s.color === '#106EBE' ? ['#3b82f6', '#60a5fa', '#93c5fd'] : ['#10b981', '#34d399', '#6ee7b7']}
+                    className="h-full w-full transition-all duration-300 hover:-translate-y-2 cursor-pointer select-none"
                   >
-                    {s.badge}
-                  </span>
+                    <div
+                      onClick={() => navigate(s.path)}
+                      className="p-8 relative overflow-hidden group h-full flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Glow orb */}
+                        <div
+                          className="absolute top-0 right-0 -mr-24 -mt-24 w-72 h-72 rounded-full opacity-50 blur-3xl transition-transform duration-700 group-hover:scale-125"
+                          style={{ backgroundColor: s.color + '18' }}
+                        />
 
-                  {/* Icon */}
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 shadow-sm"
-                    style={{ backgroundColor: s.bgColor }}
-                  >
-                    <Icon className="w-7 h-7" style={{ color: s.color }} />
-                  </div>
+                        {/* Badge */}
+                        <span
+                          className="inline-block text-xs font-bold px-3 py-1 rounded-full mb-5"
+                          style={{ backgroundColor: s.badgeColor, color: s.color }}
+                        >
+                          {s.badge}
+                        </span>
 
-                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">{s.title}</h3>
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed mb-6 text-[0.95rem]">{s.desc}</p>
+                        {/* Icon */}
+                        <div
+                          className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 shadow-sm"
+                          style={{ backgroundColor: s.bgColor }}
+                        >
+                          <Icon className="w-7 h-7" style={{ color: s.color }} />
+                        </div>
 
-                  {/* Feature list */}
-                  <ul className="space-y-2 mb-7">
-                    {s.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: s.color }} />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">{s.title}</h3>
+                        <p className="text-slate-500 dark:text-slate-400 leading-relaxed mb-6 text-[0.95rem]">{s.desc}</p>
 
-                  {/* CTA link */}
-                  <div
-                    className="flex items-center gap-2 font-bold text-sm"
-                    style={{ color: s.color }}
-                  >
-                    {s.cta}
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform duration-200" />
-                  </div>
+                        {/* Feature list */}
+                        <ul className="space-y-2 mb-7">
+                          {s.features.map((f) => (
+                            <li key={f} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-350">
+                              <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: s.color }} />
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* CTA link */}
+                      <div
+                        className="flex items-center gap-2 font-bold text-sm"
+                        style={{ color: s.color }}
+                      >
+                        {s.cta}
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform duration-200" />
+                      </div>
+                    </div>
+                  </BorderGlow>
                 </motion.div>
               );
             })}
           </div>
-
+          
           {/* Trust pills */}
           <motion.div variants={fadeUp} className="flex flex-wrap justify-center gap-3 mt-12">
             {['Kaggle Verified', 'No Account Needed', 'Instant Results', 'Private & Secure', 'Random Forest', 'XGBoost'].map((tag) => (
@@ -652,42 +717,61 @@ export default function LandingScreen() {
               Real feedback from medical students, researchers, and university counselors.
             </p>
           </motion.div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t, i) => (
-              <motion.div
-                key={t.name}
-                variants={fadeUp}
-                transition={{ delay: i * 0.1 }}
-                whileHover={{ y: -6, boxShadow: '0 24px 48px rgba(16,110,190,0.10)' }}
-                className="bg-white dark:bg-slate-900 rounded-[1.75rem] p-7 border border-slate-100 dark:border-slate-800 shadow-sm transition-all"
-              >
-                {/* Stars */}
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: 5 }).map((_, j) => (
-                    <Star
-                      key={j}
-                      className={`w-4 h-4 ${j < t.stars ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`}
-                    />
-                  ))}
-                </div>
+            {testimonials.map((t, i) => {
+              const glowColor = t.name === 'Sarah K.' ? '210 80 50' : t.name === 'James T.' ? '150 70 40' : '180 80 50';
+              const colors = t.name === 'Sarah K.' ? ['#3b82f6', '#60a5fa', '#93c5fd'] : t.name === 'James T.' ? ['#10b981', '#34d399', '#6ee7b7'] : ['#06b6d4', '#22d3ee', '#67e8f9'];
+              return (
+                <motion.div
+                  key={t.name}
+                  variants={fadeUp}
+                  transition={{ delay: i * 0.1 }}
+                  className="w-full"
+                >
+                  <BorderGlow
+                    edgeSensitivity={30}
+                    glowColor={glowColor}
+                    backgroundColor="var(--card-bg-theme)"
+                    borderRadius={28}
+                    glowRadius={40}
+                    glowIntensity={0.8}
+                    coneSpread={25}
+                    animated={false}
+                    colors={colors}
+                    className="h-full w-full transition-all duration-300 hover:-translate-y-2 select-none"
+                  >
+                    <div className="p-7 h-full flex flex-col justify-between">
+                      <div>
+                        {/* Stars */}
+                        <div className="flex gap-1 mb-4">
+                          {Array.from({ length: 5 }).map((_, j) => (
+                            <Star
+                              key={j}
+                              className={`w-4 h-4 ${j < t.stars ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`}
+                            />
+                          ))}
+                        </div>
 
-                <p className="text-slate-600 dark:text-slate-350 leading-relaxed mb-6 text-[0.95rem] italic">
-                  "{t.text}"
-                </p>
+                        <p className="text-slate-600 dark:text-slate-350 leading-relaxed mb-6 text-[0.95rem] italic">
+                          "{t.text}"
+                        </p>
+                      </div>
 
-                {/* Author */}
-                <div className="flex items-center gap-3">
-                  <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${t.avatarGrad} flex items-center justify-center text-white font-bold shadow-md`}>
-                    {t.avatar}
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-800 dark:text-white text-sm">{t.name}</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-450">{t.role}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                      {/* Author */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${t.avatarGrad} flex items-center justify-center text-white font-bold shadow-md`}>
+                          {t.avatar}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 dark:text-white text-sm">{t.name}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-450">{t.role}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </BorderGlow>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Trust badge row */}

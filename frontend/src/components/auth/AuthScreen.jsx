@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../contexts/auth-context';
 import { authApi } from '../../api/authApi';
@@ -26,6 +26,61 @@ export default function AuthScreen() {
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/';
+
+  /* ── Google OAuth Callback ──────────────────────────────────── */
+  const handleGoogleLoginResponse = useCallback(async (response) => {
+    if (!response.credential) return;
+    setError('');
+    setLoading(true);
+    try {
+      const data = await authApi.googleLogin(response.credential);
+      login(data.access_token);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err.message || 'Google authentication failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [login, navigate, from]);
+
+  /* ── Initialize Google Sign-In ────────────────────────────── */
+  useEffect(() => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    
+    const initGoogle = () => {
+      if (window.google && googleClientId) {
+        // Initialize once to prevent GSI warning
+        if (!window.googleInitialized) {
+          window.google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: handleGoogleLoginResponse,
+          });
+          window.googleInitialized = true;
+        }
+        
+        const btnContainer = document.getElementById("google-signin-button");
+        if (btnContainer) {
+          window.google.accounts.id.renderButton(
+            btnContainer,
+            { theme: "outline", size: "large", width: 360, shape: "pill" }
+          );
+        }
+      }
+    };
+
+    initGoogle();
+
+    const script = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (script) {
+      script.addEventListener('load', initGoogle);
+    }
+    
+    return () => {
+      if (script) {
+        script.removeEventListener('load', initGoogle);
+      }
+    };
+  }, [isLogin, handleGoogleLoginResponse]);
 
   /* ── Client-side validation ────────────────────────────────── */
   const validate = () => {
@@ -280,6 +335,30 @@ export default function AuthScreen() {
                 )}
               </motion.button>
             </form>
+
+            {/* Google OAuth Button */}
+            {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+              <>
+                <div className="relative my-5">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200 dark:border-slate-700/50" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white dark:bg-slate-900 px-3 text-slate-400 dark:text-slate-500 font-medium">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-center min-h-[44px]">
+                  <div id="google-signin-button" className="w-full max-w-sm" />
+                </div>
+              </>
+            ) : (
+              <div className="mt-5 text-center text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/30 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                Google Login is disabled. Configure <code className="text-cyan-600 dark:text-cyan-400">VITE_GOOGLE_CLIENT_ID</code> to enable.
+              </div>
+            )}
 
             {/* Footer links */}
             <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center space-y-3">

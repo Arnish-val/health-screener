@@ -14,7 +14,11 @@ export function AuthProvider({ children }) {
           localStorage.removeItem('token');
           return null;
         }
-        return { email: decoded.sub };
+        return {
+          email: decoded.sub,
+          name: decoded.name || null,
+          pictureUrl: decoded.picture_url || null
+        };
       } catch {
         localStorage.removeItem('token');
         return null;
@@ -26,7 +30,11 @@ export function AuthProvider({ children }) {
   const login = (token) => {
     localStorage.setItem('token', token);
     const decoded = jwtDecode(token);
-    setUser({ email: decoded.sub });
+    setUser({
+      email: decoded.sub,
+      name: decoded.name || null,
+      pictureUrl: decoded.picture_url || null
+    });
   };
 
   const logout = () => {

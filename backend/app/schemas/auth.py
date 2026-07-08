@@ -12,6 +12,8 @@ class UserLogin(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
+    name: Optional[str] = None
+    picture_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -22,3 +24,6 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+class GoogleToken(BaseModel):
+    id_token: str

@@ -39,6 +39,16 @@
 /* ═══════════════════════════════════════════════════════════════════
    BASE STYLES
    ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --card-bg-theme: #ffffff;
+  --card-border-theme: rgb(241 245 249);
+}
+
+.dark {
+  --card-bg-theme: #0f172a;
+  --card-border-theme: rgb(30 41 59);
+}
+
 body {
   font-family: var(--font-sans);
   @apply bg-[#F5F5F5] text-slate-900 transition-colors duration-300;
