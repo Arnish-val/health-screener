@@ -115,14 +115,23 @@ jobs:
 
             # ── Health check ───────────────────────────────────
             echo "[5/5] Running health check..."
-            sleep 5
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/health || echo "000")
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Health check passed (HTTP $HTTP_CODE)"
-            else
-              echo "⚠️  Health check returned HTTP $HTTP_CODE"
+            success=false
+            for i in {1..10}; do
+              echo "Attempt $i: Checking if API is ready..."
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ || echo "000")
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "✅ Health check passed (HTTP $HTTP_CODE)"
+                success=true
+                break
+              fi
+              echo "  Received HTTP $HTTP_CODE, waiting 5 seconds..."
+              sleep 5
+            done
+
+            if [ "$success" = false ]; then
+              echo "❌ Health check failed after 10 attempts"
               echo "  Container logs:"
-              docker logs --tail 20 health-screener-api
+              docker logs --tail 50 health-screener-api
               exit 1
             fi
 
