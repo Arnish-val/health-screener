@@ -87,6 +87,11 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            # ── Sync Nginx Config ──────────────────────────────
+            echo "Syncing Nginx config..."
+            sudo cp nginx/health-screener.conf /etc/nginx/sites-available/health-screener
+            sudo nginx -t && sudo systemctl reload nginx
+
             # ── Write production .env ──────────────────────────
             echo "[2/5] Writing environment config..."
             cat > backend/.env << 'ENVEOF'
