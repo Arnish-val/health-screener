@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Brain, GraduationCap, Briefcase, ArrowRight, ArrowLeft } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
 import { predictDepressionStudent, predictDepressionProfessional } from '../../api/depressionApi';
 import useApi from '../../hooks/useApi';
 import Button from '../ui/Button';
@@ -123,7 +123,7 @@ export default function DepressionScreener() {
 
       <AnimatePresence mode="wait">
         {step === 'setup' ? (
-          <motion.div
+          <Motion.div
             key="setup"
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -202,9 +202,9 @@ export default function DepressionScreener() {
               Begin Screener
               <ArrowRight className="w-4 h-4" />
             </Button>
-          </motion.div>
+          </Motion.div>
         ) : (
-          <motion.div
+          <Motion.div
             key="questions"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -256,7 +256,7 @@ export default function DepressionScreener() {
             <RiskResults result={resultData} />
 
             <Disclaimer />
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
     </div>
