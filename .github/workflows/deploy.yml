@@ -90,7 +90,7 @@ jobs:
             # ── Write production .env ──────────────────────────
             echo "[2/5] Writing environment config..."
             cat > backend/.env << 'ENVEOF'
-            DATABASE_URL=sqlite:///./health_screener.db
+            DATABASE_URL=sqlite:////app/data/health_screener.db
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
             CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
@@ -103,6 +103,7 @@ jobs:
 
             # ── Restart container ──────────────────────────────
             echo "[4/5] Restarting backend..."
+            mkdir -p "$APP_DIR/data"
             docker stop health-screener-api 2>/dev/null || true
             docker rm health-screener-api 2>/dev/null || true
             docker run -d \
@@ -110,6 +111,7 @@ jobs:
               --restart always \
               --env-file backend/.env \
               -v "$APP_DIR/ml_pipeline/models:/ml_pipeline/models:ro" \
+              -v "$APP_DIR/data:/app/data" \
               -p 8000:8000 \
               health-screener-api
 
