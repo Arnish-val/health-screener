@@ -510,7 +510,7 @@ export default function LandingScreen() {
                     colors={colors}
                     className="min-h-[180px] w-full transition-all duration-300 hover:-translate-y-1 cursor-pointer select-none"
                   >
-                    <div 
+                    <div
                       onClick={() => navigate(path)}
                       className="flex h-full flex-col justify-between p-6"
                     >
@@ -646,7 +646,7 @@ export default function LandingScreen() {
               );
             })}
           </div>
-          
+
           {/* Trust pills */}
           <motion.div variants={fadeUp} className="flex flex-wrap justify-center gap-3 mt-12">
             {['Kaggle Verified', 'No Account Needed', 'Instant Results', 'Private & Secure', 'Random Forest', 'XGBoost'].map((tag) => (
