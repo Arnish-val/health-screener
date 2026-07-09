@@ -114,8 +114,8 @@ export default function DepressionScreener() {
             {persona === 'professional' ? 'Professional Mental Health Screener' : 'Student Mental Health Screener'}
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            {step === 'setup' 
-              ? 'Select your profile to start the screening.' 
+            {step === 'setup'
+              ? 'Select your profile to start the screening.'
               : `Adjust your demographic and lifestyle metrics based on official ${persona} survey parameters.`}
           </p>
         </div>
@@ -140,11 +140,10 @@ export default function DepressionScreener() {
               <button
                 type="button"
                 onClick={() => setSelectedPersona('student')}
-                className={`cursor-pointer flex flex-col items-center justify-center p-5 rounded-2xl border text-center transition-all duration-300 ${
-                  selectedPersona === 'student'
-                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-450 shadow-md shadow-emerald-500/5'
-                    : 'glass-card border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                }`}
+                className={`cursor-pointer flex flex-col items-center justify-center p-5 rounded-2xl border text-center transition-all duration-300 ${selectedPersona === 'student'
+                  ? 'bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-450 shadow-md shadow-emerald-500/5'
+                  : 'glass-card border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                  }`}
               >
                 <div className={`p-3 rounded-full mb-3 ${selectedPersona === 'student' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                   <GraduationCap className="w-8 h-8" />
@@ -158,11 +157,10 @@ export default function DepressionScreener() {
               <button
                 type="button"
                 onClick={() => setSelectedPersona('professional')}
-                className={`cursor-pointer flex flex-col items-center justify-center p-5 rounded-2xl border text-center transition-all duration-300 ${
-                  selectedPersona === 'professional'
-                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-450 shadow-md shadow-emerald-500/5'
-                    : 'glass-card border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                }`}
+                className={`cursor-pointer flex flex-col items-center justify-center p-5 rounded-2xl border text-center transition-all duration-300 ${selectedPersona === 'professional'
+                  ? 'bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-450 shadow-md shadow-emerald-500/5'
+                  : 'glass-card border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                  }`}
               >
                 <div className={`p-3 rounded-full mb-3 ${selectedPersona === 'professional' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                   <Briefcase className="w-8 h-8" />
@@ -179,7 +177,7 @@ export default function DepressionScreener() {
                 Enter your Age
               </label>
               <input
-                type="number"
+                type="text"
                 placeholder="e.g., 25"
                 value={ageInput}
                 onChange={(e) => setAgeInput(e.target.value)}
@@ -199,7 +197,7 @@ export default function DepressionScreener() {
               disabled={!selectedPersona || !isAgeValid(ageInput, selectedPersona)}
               className="w-full cursor-pointer flex items-center justify-center gap-2"
             >
-              Begin Screener
+              Start Screening
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Motion.div>
