@@ -51,8 +51,9 @@ An end-to-end, full-stack intelligence platform that leverages Machine Learning 
 ├── frontend/           # React + Vite client-side dashboard
 ├── ml_pipeline/        # Model training scripts, preprocessing, and datasets
 │   └── models/         # Trained .joblib ML model artifacts
-├── render.yaml         # Blueprint for automated cloud deployment on Render
-└── .gitignore          # Production git ignore configuration
+├── nginx/              # Nginx reverse proxy configuration files
+├── scripts/            # Shell scripts (EC2 setup & bootstrapping)
+└── .github/workflows/  # CI/CD deployment pipelines (GitHub Actions)
 ```
 
 ---
@@ -63,7 +64,7 @@ Follow these instructions to run the application on your local machine.
 
 ### Prerequisites
 *   [Node.js](https://nodejs.org/) (v18 or higher recommended)
-*   [Python 3.10+](https://www.python.org/)
+*   [Python 3.12](https://www.python.org/)
 
 ---
 
@@ -113,15 +114,43 @@ Follow these instructions to run the application on your local machine.
 
 ---
 
-## ☁️ Deployment
+## ☁️ Production Deployment Architecture (AWS + Vercel)
 
-This project includes a `render.yaml` file, allowing you to deploy both the backend and frontend seamlessly on **Render.com** using Blueprints:
+The production stack is deployed using a highly scalable, secure, and **zero-cost** decoupled cloud architecture:
 
-1. Push your repository to **GitHub**.
-2. Log in to [Render](https://render.com).
-3. Click **New** > **Blueprint**.
-4. Connect your GitHub repository.
-5. Render will automatically build, deploy, and link both applications!
+```
+  User's Browser
+       │
+       ├──── HTTPS (Port 443) ────► Vercel CDN (Frontend SPA Build)
+       │
+       └──── HTTPS (Port 443) ────► Nginx Proxy + Let's Encrypt SSL (EC2 Host)
+                                     │
+                                     ▼ (Port 8000)
+                              Docker Container (FastAPI Backend)
+                                     │
+                                     ▼ (Persistent Volume)
+                              SQLite Database
+```
+
+### 💻 Frontend (Vercel)
+*   The React client dashboard is deployed to **Vercel's global Edge CDN** for ultra-fast asset delivery.
+*   Pushes to the `main` branch trigger Vercel to automatically compile your production Vite build and publish.
+
+### ⚙️ Backend & Machine Learning (AWS EC2 + Docker)
+*   **Host**: AWS EC2 `t3.micro` instance running **Ubuntu 24.04 LTS**.
+*   **Virtual Memory**: Configured with a **2 GB Swap Space** to assist the physical RAM in loading heavy Scikit-Learn and XGBoost pipelines without memory crashes.
+*   **Containerization**: The FastAPI backend is built and run inside a **Docker** container for clean environment isolation.
+*   **Reverse Proxy**: **Nginx** handles incoming traffic, forwards requests to the Docker container, and manages secure HSTS/XSS security headers.
+*   **SSL Certificate**: Fully encrypted via free auto-renewing **Let's Encrypt** certificates managed by **Certbot**.
+*   **DNS Resolution**: Routed using **DuckDNS** dynamic DNS servers.
+*   **Security & Rate Limiting**: Features built-in Nginx request rate limiters (5 req/sec for APIs, 1 req/sec for authentication routes) to prevent DDoS attacks and credential brute-forcing.
+*   **Data Persistence**: A host-mounted Docker volume maps database modifications to `/data/` on the EC2 drive, keeping SQLite records safe across deployments.
+
+### 🚀 CI/CD Pipeline (GitHub Actions)
+Our automated pipeline ([deploy.yml](file:///.github/workflows/deploy.yml)) governs code releases:
+1. **Trigger**: Pushes to `main`.
+2. **Lint & Test**: Builds and tests the React codebase and runs the backend `pytest` suite in parallel.
+3. **Deploy**: If tests pass, SSHs into the EC2 server, pulls the repository, rebuilds the Docker image, reloads the Nginx configurations, and tests the health status of the new container with zero downtime.
 
 ---
 
