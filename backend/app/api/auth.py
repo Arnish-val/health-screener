@@ -41,7 +41,13 @@ def register(user_in: UserCreate, db: Session = Depends(deps.get_db)):
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(deps.get_db)):
     # Standard OAuth2 endpoint for getting the token
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not security.verify_password(form_data.password, user.hashed_password):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No account. Sign up as a new user",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -84,7 +90,7 @@ def google_auth(token_in: GoogleToken, db: Session = Depends(deps.get_db)):
             
         name = idinfo.get("name")
         picture_url = idinfo.get("picture")
-    except ValueError as e:
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid Google ID token: {str(e)}"
