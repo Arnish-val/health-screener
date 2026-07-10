@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Brain, Loader2, AlertTriangle, Info } from 'lucide-react';
 import Disclaimer from './Disclaimer';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
 const INITIAL_STATE = {
   Gender: 0,

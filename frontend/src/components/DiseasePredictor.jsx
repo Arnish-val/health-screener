@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Stethoscope, Loader2, CheckCircle2, AlertTriangle, AlertCircle, Search } from 'lucide-react';
 import Disclaimer from './Disclaimer';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
 const KAGGLE_SYMPTOMS = [
     "itching","skin_rash","nodal_skin_eruptions","continuous_sneezing",
