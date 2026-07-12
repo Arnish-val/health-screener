@@ -4,7 +4,36 @@
  */
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+const getApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    let url = import.meta.env.VITE_API_URL;
+    if (url.endsWith('/')) {
+      url = url.slice(0, -1);
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      if (url === 'health-screener-api') {
+        const hostname = window.location.hostname;
+        if (hostname.includes('.onrender.com')) {
+          const apiHostname = hostname.replace('-frontend', '-api');
+          return `https://${apiHostname}`;
+        }
+      }
+      return `http://${url}`;
+    }
+    return url;
+  }
+
+  const hostname = window.location.hostname;
+
+  if (hostname.includes('.onrender.com')) {
+    const apiHostname = hostname.replace('-frontend', '-api');
+    return `https://${apiHostname}`;
+  }
+
+  return `http://${hostname}:8000`;
+};
+
+const API_BASE_URL = getApiUrl();
 
 const client = axios.create({
   baseURL: API_BASE_URL,
